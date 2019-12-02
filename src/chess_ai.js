@@ -35,7 +35,7 @@ function Chess_Board() {
         for (let row = 0; row < 8; row++) {
             for (let col = 0; col < 8; col++) {
                 if (piece_type[row][col] === null) this.pieces[row][col] = null;
-                else this.pieces[row][col] = new Piece(piece_type[row][col], row, col, board);
+                else this.pieces[row][col] = new Piece(piece_type[row][col], row, col, this);
             }
         }
         board.prev = board.duplicate();
@@ -114,6 +114,12 @@ function Chess_Board() {
     this.calculate_value_diff = function (color) {
         let value = 0;
         let points = { "p": 1, "b": 3, "n": 3, "r": 5, "q": 9.5, "k": 4 };
+
+        let opposing_color = color == "w" ? "b" : "w";
+        this.calculate_check(opposing_color);
+        if (this.in_check[opposing_color]) {
+            value += 1;
+        }
 
         for (let r = 0; r < 8; r++) {
             for (let c = 0; c < 8; c++) {
@@ -211,8 +217,8 @@ function Chess_Board() {
     }
 
     this.move_ai = function (depth) {
-        if (depth === undefined) depth = 1;
-        let best_board = null;
+        if (depth === undefined) depth = 2;
+        let best_move = null;
         let max_value = -44;
 
         for (let r = 0; r < 8; r++) {
@@ -225,35 +231,8 @@ function Chess_Board() {
                         test_board = this.duplicate();
                         test_board.display = false;
                         piece = test_board.pieces[r][c];
-                        for (let r = 0; r < all_moves.r.length; r++) {
-                            if (moves[m][0] == all_moves.r[r][0] && moves[m][1] == all_moves.r[r][1]) {
-                                test_board.pawn_rush = piece;
-                            }
-                        }
-                        for (let e = 0; e < all_moves.e.length; e++) {
-                            if (moves[m][0] == all_moves.e[e][0] && moves[m][1] == all_moves.e[e][1]) {
-                                test_board.pawn_rush.remove();
-                            }
-                        }
-                        for (let s = 0; s < all_moves.s.length; s++) {
-                            if (moves[m][0] == all_moves.s[s][0] && moves[m][1] == all_moves.s[s][1]) {
-                                if (moves[m][1] < 4) { // left castle
-                                    test_board.pieces[moves[m][0]][0].move_to(moves[m][0], 3);
-                                } else if (moves[m][1] > 4) { // right castle
-                                    test_board.pieces[moves[m][0]][7].move_to(moves[m][0], 5);
-                                }
-                            }
-                        }
-                        for (let p = 0; p < all_moves.p.length; p++) {
-                            if (moves[m][0] == all_moves.p[p][0] && moves[m][1] == all_moves.p[p][1]) {
-                                // Promotion
-                                piece.type = "q";
-                            }
-                        }
-                        piece.move_to(moves[m][0], moves[m][1]);
-                        if (test_board.pawn_rush !== null && test_board.pawn_rush.color != piece.color) {
-                            test_board.pawn_rush = null;
-                        }
+
+                        test_board.make_move(piece, moves[m], all_moves);
 
                         let test_board_result = test_board.duplicate();
                         if (depth > 0) {
@@ -261,16 +240,56 @@ function Chess_Board() {
                             test_board_result.move_ai(depth - 1);
                         }
                         let test_value = test_board_result.calculate_value_diff(this.turn);
-                        if (test_value > max_value) {
+                        if ((test_value > max_value) || (test_value == max_value && Math.random() < 0.33)) {
                             max_value = test_value;
-                            best_board = test_board;
+                            best_move = { row: r, col: c, move: moves[m] };
                         }
                     }
                 }
             }
         }
-        this.copy(best_board);
-        this.display = true;
+        if (best_move !== null) {
+            let piece = this.pieces[best_move.row][best_move.col];
+            if (this == board) {
+                board.display = true;
+            }
+            this.make_move(piece, best_move.move, piece.get_moves());
+        }
+    }
+
+    this.make_move = function (piece, move, all_moves) {
+        for (let r = 0; r < all_moves.r.length; r++) {
+            if (move[0] == all_moves.r[r][0] && move[1] == all_moves.r[r][1]) {
+                this.pawn_rush = piece;
+            }
+        }
+        for (let e = 0; e < all_moves.e.length; e++) {
+            if (move[0] == all_moves.e[e][0] && move[1] == all_moves.e[e][1]) {
+                this.pawn_rush.remove();
+            }
+        }
+        for (let s = 0; s < all_moves.s.length; s++) {
+            if (move[0] == all_moves.s[s][0] && move[1] == all_moves.s[s][1]) {
+                if (move[1] < 4) { // left castle
+                    this.pieces[move[0]][0].move_to(move[0], 3);
+                } else if (move[1] > 4) { // right castle
+                    this.pieces[move[0]][7].move_to(move[0], 5);
+                }
+            }
+        }
+        for (let p = 0; p < all_moves.p.length; p++) {
+            if (move[0] == all_moves.p[p][0] && move[1] == all_moves.p[p][1]) {
+                // Promotion
+                piece.type = "q";
+                if(this.display){
+                    piece.refresh_image();
+                }
+            }
+        }
+        piece.move_to(move[0], move[1]);
+        if (this.pawn_rush !== null && this.pawn_rush.color != piece.color) {
+            this.pawn_rush = null;
+        }
     }
 
     this.copy = function (b) {
@@ -390,12 +409,12 @@ function Chess_Board() {
     }
 }
 
-function Piece(type, row, col, board) {
+function Piece(type, row, col, b) {
     this.color = type.charAt(0); // "w" or "b"
     this.type = type.charAt(1); // "p, r, n, b, q, k"
     this.row = row;
     this.col = col;
-    this.board = board;
+    this.board = b;
     this.has_moved = false;
 
     if (this.type == "k") {
@@ -779,8 +798,8 @@ function Piece(type, row, col, board) {
         elem.innerHTML = image;
     }
 
-    this.duplicate = function (board) {
-        let new_piece = new Piece(this.color + this.type, this.row, this.col, board);
+    this.duplicate = function (b) {
+        let new_piece = new Piece(this.color + this.type, this.row, this.col, b);
         new_piece.has_moved = this.has_moved;
         return new_piece;
     }
@@ -791,7 +810,6 @@ function undo() {
     if (prev !== null) {
         board = prev;
         board.render();
-        board.turn = board.turn;
         last_board = board.duplicate();
     }
 }
@@ -853,9 +871,13 @@ function switch_turns() {
         remove_all_classes();
 
         if (ai && board.turn == "b") {
-            board.move_ai();
-            board.render();
-            switch_turns();
+            setTimeout(
+                function () {
+                    board.move_ai(2);
+                    switch_turns();
+                },
+                1000
+            );
         }
 
     }
