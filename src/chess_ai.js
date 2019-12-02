@@ -39,10 +39,10 @@ function Chess_Board() {
             }
         }
         board.prev = board.duplicate();
-        this.display();
+        this.render();
     }
 
-    this.display = function () {
+    this.render = function () {
         /* ---------- CREATING THE TABLE ----------
         We need to define the table rows and table data elements within those rows for the html table element.
         We do that by writing the html code in a string and then setting the innerHTML attribute of our table element to that string. 
@@ -109,6 +109,25 @@ function Chess_Board() {
         }
 
         return new_board;
+    }
+
+    this.calculate_value_diff = function (color) {
+        let value = 0;
+        let points = { "p": 1, "b": 3, "n": 3, "r": 5, "q": 9.5, "k": 4 };
+
+        for (let r = 0; r < 8; r++) {
+            for (let c = 0; c < 8; c++) {
+                let piece = this.pieces[r][c];
+                if (piece !== null) {
+                    if (piece.color == color) {
+                        value += points[piece.type];
+                    } else {
+                        value -= points[piece.type];
+                    }
+                }
+            }
+        }
+        return value;
     }
 
     this.has_piece_at = function (row, col, color) {
@@ -189,6 +208,86 @@ function Chess_Board() {
                 }
             }
         }
+    }
+
+    this.move_ai = function (depth) {
+        if (depth === undefined) depth = 1;
+        let best_board = null;
+        let max_value = -44;
+
+        for (let r = 0; r < 8; r++) {
+            for (let c = 0; c < 8; c++) {
+                let piece = this.pieces[r][c];
+                if (piece !== null && piece.color == this.turn) {
+                    let all_moves = piece.get_moves();
+                    let moves = (all_moves.a).concat(all_moves.c);
+                    for (let m = 0; m < moves.length; m++) {
+                        test_board = this.duplicate();
+                        test_board.display = false;
+                        piece = test_board.pieces[r][c];
+                        for (let r = 0; r < all_moves.r.length; r++) {
+                            if (moves[m][0] == all_moves.r[r][0] && moves[m][1] == all_moves.r[r][1]) {
+                                test_board.pawn_rush = piece;
+                            }
+                        }
+                        for (let e = 0; e < all_moves.e.length; e++) {
+                            if (moves[m][0] == all_moves.e[e][0] && moves[m][1] == all_moves.e[e][1]) {
+                                test_board.pawn_rush.remove();
+                            }
+                        }
+                        for (let s = 0; s < all_moves.s.length; s++) {
+                            if (moves[m][0] == all_moves.s[s][0] && moves[m][1] == all_moves.s[s][1]) {
+                                if (moves[m][1] < 4) { // left castle
+                                    test_board.pieces[moves[m][0]][0].move_to(moves[m][0], 3);
+                                } else if (moves[m][1] > 4) { // right castle
+                                    test_board.pieces[moves[m][0]][7].move_to(moves[m][0], 5);
+                                }
+                            }
+                        }
+                        for (let p = 0; p < all_moves.p.length; p++) {
+                            if (moves[m][0] == all_moves.p[p][0] && moves[m][1] == all_moves.p[p][1]) {
+                                // Promotion
+                                piece.type = "q";
+                            }
+                        }
+                        piece.move_to(moves[m][0], moves[m][1]);
+                        if (test_board.pawn_rush !== null && test_board.pawn_rush.color != piece.color) {
+                            test_board.pawn_rush = null;
+                        }
+
+                        let test_board_result = test_board.duplicate();
+                        if (depth > 0) {
+                            test_board_result.turn = (test_board_result.turn == "w" ? "b" : "w");
+                            test_board_result.move_ai(depth - 1);
+                        }
+                        let test_value = test_board_result.calculate_value_diff(this.turn);
+                        if (test_value > max_value) {
+                            max_value = test_value;
+                            best_board = test_board;
+                        }
+                    }
+                }
+            }
+        }
+        this.copy(best_board);
+        this.display = true;
+    }
+
+    this.copy = function (b) {
+        this.pieces = b.pieces;
+        for (let r = 0; r < 8; r++) {
+            for (let c = 0; c < 8; c++) {
+                let piece = b.pieces[r][c];
+                if (piece !== null) {
+                    this.pieces[r][c] = piece.duplicate(this);
+                } else {
+                    this.pieces[r][c] = null;
+                }
+            }
+        }
+        this.pawn_rush = b.pawn_rush;
+        this.king = b.king;
+        this.in_check = b.in_check;
     }
 
     this.marked_by = function (color) {
@@ -691,7 +790,7 @@ function undo() {
     let prev = board.prev;
     if (prev !== null) {
         board = prev;
-        board.display();
+        board.render();
         board.turn = board.turn;
         last_board = board.duplicate();
     }
@@ -750,20 +849,16 @@ function switch_turns() {
                 break;
         }
 
-        this.selected = null;
+        board.selected = null;
         remove_all_classes();
 
         if (ai && board.turn == "b") {
-
+            board.move_ai();
+            board.render();
+            switch_turns();
         }
 
     }
-}
-
-function ai_move(board) {
-
-
-    return { p: piece, m: move };
 }
 
 function not_on_board_error(row, col) {
