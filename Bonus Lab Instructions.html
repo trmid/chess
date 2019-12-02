@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+    <title>COSC 122 Bonus Lab: Chess</title>
+</head>
+
+<body>
+    <h1>COSC 122 Bonus Lab: Chess!</h1>
+    <hr>
+    <br>
+    <h3>Two-dimensional arrays</h3>
+    <p>
+        In this lab, we will set up a chess board in a two dimensional array that stores our pieces. A two dimensional
+        array is simply an array that stores more arrays. You can imagine a
+        two dimensional array as a grid where you need to specify two indicies to access any specific part of that grid.
+        For example, if I set up the following 2-D array:
+        <p style="font-weight: bold; font-family: monospace;">
+            var grid = [
+            <br>
+            [0, 1, 2],<br>
+            [3, 4, 5],<br>
+            [6, 7, 8]<br>
+            ];
+        </p>
+        I can get the value stored at the 1st row and 3rd column by writing:
+        <p style="font-weight: bold; font-family: monospace;">
+            var value = grid[0][2];
+        </p>
+        Our variable, value, will store the number, 2. Notice, that the first refernce is always the row, and the second
+        is the column.
+    </p>
+    <br>
+    <h3>Instructions</h3>
+    <p>
+        To complete the bonus lab, open the chess.html file in Notepad++ or an IDE of your choice. Follow the Task
+        instructions that are written as comments in the file. Run the chess.html file in your browser to test it. If
+        your code is correct, your page should look like this:
+        <br>
+        <br>
+        <img src="img/chess_board.png" alt="">
+        <br>
+    </p>
+    <br>
+    <h3>Pawn Movement Example</h3>
+    <p>
+        Your pawn movement options should look like the following picture on its first turn. (opposite direction for
+        black pawns)
+        <br>
+        <br>
+        <img src="img/pawn_moves.png" alt="">
+    </p>
+    <br>
+    <h3>Pawn Captures Example</h3>
+    <p>
+        Your pawn capture options should look like the following picture when there are two enemies diagonally in-front
+        of it. (opposite direction for black pawns)
+        <br>
+        <br>
+        <img src="img/pawn_captures.png" alt="">
+    </p>
+    <br>
+    <h3>Knight Movement Example</h3>
+    <p>
+        Your knight movement options should look like the following picture.
+        <br>
+        <br>
+        <img src="img/knight_moves.png" alt="">
+    </p>
+    <br>
+    <h3>Grading Breakdown (Total: 10 points)</h3>
+    <p>
+        <li>Task 1: +1 for creating a table element with the correct id.</li>
+        <li>Task 2: +1 (+0.5 for correct variable names) (+0.5 for correct values) </li>
+        <li>Task 3: +2 (+1 for creating the 8x8 array) (+1 for placing the pieces in the right places) </li>
+        <li>Task 4: +1 for the correct logical statement.</li>
+        <li>Task 5: +1 (+0.5 for the correct movement for black and white pawns) (+0.5 for setting the move variable
+            correctly) </li>
+        <li>Task 6: +2 (+1 for the correct movement for black and white pawns) (+1 for setting the move variable
+            correctly)</li>
+        <li>Task 7: +2 (+1 for the correct movement) (+1 for adding the moves to the array)</li>
+        <li>Task 8: Play the game! (no points for this one, sorry)</li>
+    </p>
+    <br>
+    <h3>Submission Instructions</h3>
+    <p>
+        To submit the assignment, upload your finished chess.html file to canvas.
+    </p>
+</body>
+
+</html>
