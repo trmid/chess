@@ -281,7 +281,7 @@ function Chess_Board() {
             if (move[0] == all_moves.p[p][0] && move[1] == all_moves.p[p][1]) {
                 // Promotion
                 piece.type = "q";
-                if(this.display){
+                if (this.display) {
                     piece.refresh_image();
                 }
             }
@@ -443,12 +443,14 @@ function Piece(type, row, col, b) {
         }
 
         // Edit Board data
-        let pr = this.board.pawn_rush;
-        if (pr !== null) {
-            let dir = pr.color == "w" ? -1 : 1;
-            if (col == pr.col && row == pr.row - dir) {
-                //enpassant
-                pr.remove();
+        if (this.type == "p") {
+            let pr = this.board.pawn_rush;
+            if (pr !== null) {
+                let dir = pr.color == "w" ? -1 : 1;
+                if (col == pr.col && row == pr.row - dir) {
+                    //enpassant
+                    pr.remove();
+                }
             }
         }
 
@@ -581,21 +583,19 @@ function Piece(type, row, col, b) {
             }
 
             // Add in pawn en_passant, rush, and promotion moves
-            if (this.type == "p") {
-                let dir = (this.color == "w" ? -1 : 1);
-                if (!this.has_moved && !this.board.has_piece_at(this.row + dir, this.col) && !this.board.has_piece_at(this.row + 2 * dir, this.col)) {
-                    available_moves = this.push_move(this.row + 2 * dir, this.col, available_moves, verify_valid);
-                    rush_moves = this.push_move(this.row + 2 * dir, this.col, rush_moves, verify_valid);
-                }
-                let pr = this.board.pawn_rush;
-                if (pr !== null && pr.row == this.row) {
-                    if (pr.col == this.col + 1) {
-                        capture_moves = this.push_move(this.row + dir, this.col + 1, capture_moves, verify_valid);
-                        enpassant_moves = this.push_move(this.row + dir, this.col + 1, enpassant_moves, verify_valid);
-                    } else if (pr.col == this.col - 1) {
-                        capture_moves = this.push_move(this.row + dir, this.col - 1, capture_moves, verify_valid);
-                        enpassant_moves = this.push_move(this.row + dir, this.col - 1, enpassant_moves, verify_valid);
-                    }
+            let dir = (this.color == "w" ? -1 : 1);
+            if (!this.has_moved && !this.board.has_piece_at(this.row + dir, this.col) && !this.board.has_piece_at(this.row + 2 * dir, this.col)) {
+                available_moves = this.push_move(this.row + 2 * dir, this.col, available_moves, verify_valid);
+                rush_moves = this.push_move(this.row + 2 * dir, this.col, rush_moves, verify_valid);
+            }
+            let pr = this.board.pawn_rush;
+            if (pr !== null && pr.row == this.row) {
+                if (pr.col == this.col + 1) {
+                    capture_moves = this.push_move(this.row + dir, this.col + 1, capture_moves, verify_valid);
+                    enpassant_moves = this.push_move(this.row + dir, this.col + 1, enpassant_moves, verify_valid);
+                } else if (pr.col == this.col - 1) {
+                    capture_moves = this.push_move(this.row + dir, this.col - 1, capture_moves, verify_valid);
+                    enpassant_moves = this.push_move(this.row + dir, this.col - 1, enpassant_moves, verify_valid);
                 }
             }
         } else if (piece_type == "r") {
@@ -806,6 +806,7 @@ function Piece(type, row, col, b) {
 }
 
 function undo() {
+    game_over = false;
     let prev = board.prev;
     if (prev !== null) {
         board = prev;
