@@ -1,8 +1,7 @@
 /* 
 Author: Trevor Richard
-Date: Nov. 30, 2019
-Description: A chess game that is used to introduce 2-dimensional arrays in javascript 
-    for the COSC 122 course at the University of British Columbia Okanagan.
+Date: Jan 1, 2020
+Description: A javascript chess game with a simple AI or 2-player games.
 */
 
 function Chess_Board() {
@@ -60,15 +59,15 @@ function Chess_Board() {
         var table = document.getElementById("board");
         var table_inner_html = "";
 
-        for (let row = 0; row < 9; row++) {
+        for (let row = -1; row < 9; row++) {
             let row_html = "<tr>";
-            for (let col = -1; col < 8; col++) {
-                if (col == -1) {
-                    if (row == 8) var id = " ";
+            for (let col = -1; col < 9; col++) {
+                if (col == -1 || col == 8) {
+                    if (row == 8 || row == -1) var id = " ";
                     else var id = 8 - row;
                     var tile = "<th>" + id + "</th>";
                 } else {
-                    if (row == 8) {
+                    if (row == 8 || row == -1) {
                         var id = "" + String.fromCharCode(('A').charCodeAt(0) + col);
                         var tile = "<th>" + id + "</th>";
                     } else {
@@ -79,7 +78,7 @@ function Chess_Board() {
                             tile += "</td>";
                         } else {
                             var img_name = this.pieces[row][col].color + this.pieces[row][col].type;
-                            tile += "<img src='img/" + img_name + ".png'></td>";
+                            tile += "<img class='piece' src='img/" + img_name + ".png'></td>";
                         }
                     }
                 }
@@ -817,10 +816,10 @@ function undo() {
 
 function interpolate_image(terp_dest, terp_from, terp_piece, terp_start, terp_stop, terp_t) {
     let current = {
-        x: terp_start.x + (terp_stop.x - terp_start.x) * terp_t,
-        y: terp_start.y + (terp_stop.y - terp_start.y) * terp_t
+        x: (terp_stop.x - terp_start.x) * terp_t,
+        y: (terp_stop.y - terp_start.y) * terp_t
     }
-    terp_piece.setAttribute("style", "position: absolute; top:" + (current.y + 3) + "px; left:" + (current.x + 3) + "px;");
+    terp_piece.setAttribute("style", "top:" + (current.y + 5) + "px; left:" + (current.x + 5) + "px;");
     if (terp_t < 1) {
         terp_t += 0.05;
         setTimeout(

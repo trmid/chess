@@ -1,6 +1,6 @@
 html,
 body {
-    background-color: rgb(64, 75, 78);
+    background-color: rgb(49, 57, 59);
     color: white;
     width: 100%;
     height: 100%;
@@ -28,8 +28,8 @@ tbody {
 
 th,
 td {
-    width: 66px;
-    height: 66px;
+    width: 10vmin;
+    height: 10vmin;
     text-align: center;
 }
 
@@ -69,6 +69,19 @@ tr:nth-child(even) td:nth-child(even):hover {
     background-color: dodgerblue;
 }
 
+button{
+    border-radius: 7px;
+    padding: 10px;
+    background-color: var(--black-color);
+    color: white;
+    font-weight: bold;
+    border: none;
+}
+
+button:hover{
+    cursor: pointer;
+}
+
 #wrapper {
     position: absolute;
     top: 0;
@@ -80,11 +93,19 @@ tr:nth-child(even) td:nth-child(even):hover {
 
 #table-container {
     position: relative;
-    left: -30px;
 }
 
 #board {
     display: inline-block;
+}
+
+#footer{
+    margin-top: 50px;
+    margin-bottom: 10px;
+    text-align: center;
+    width: 100%;
+    color: #888;
+    font-size: small;
 }
 
 .available_move {
@@ -101,4 +122,10 @@ tr:nth-child(even) td:nth-child(even):hover {
 
 .selected {
     box-shadow: inset 0 0 15px 15px rgb(218, 228, 132);
+}
+
+.piece{
+    width: 85%;
+    height: 85%;
+    position: relative;
 }

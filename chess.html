@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+    <title>Chess</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="src/chess_style.css">
+</head>
+
+<body>
+    <div id="wrapper">
+        <br>
+        <h1 id="title">Chess</h1>
+        <div id="menu-buttons">
+            <div style="height: 30px; width: 100%;"></div>
+            <button onclick="start_ai();">Player vs. AI</button>
+            <br>
+            <br>
+            <button onclick="start_two_player();">Player vs. Player</button>
+        </div>
+        <div id="board-container" style="display: none;">
+            <div id="table-container">
+                <table id="board">
+                </table>
+            </div>
+            <button onclick="undo();">Undo</button>
+
+        </div>
+        <div id="footer">
+            © 2020 Trevor Richard
+        </div>
+    </div>
+
+    <script src="src/chess.js"></script>
+    <script>
+        var board; // This variable stores our chess board information as an object
+
+        var turn_number = 0;
+        var game_over = false;
+        var ai;
+        var last_board;
+
+
+        // The window.onload function is great for initializing variables when they require a defined function to be created.
+        window.onload = function () {
+            board = new Chess_Board(); // This creates a new Chess_Board object and assigns it to our variable
+            board.setup();
+        }
+
+        function start_two_player() {
+            ai = false;
+            show_board();
+        }
+
+        function start_ai() {
+            ai = true;
+            show_board();
+        }
+
+        function show_board() {
+            document.getElementById("board-container").style = "display: block;";
+            document.getElementById("menu-buttons").style = "display: none;";
+            document.getElementById("board").scrollIntoView();
+        }
+
+    </script>
+</body>
+
+</html>
