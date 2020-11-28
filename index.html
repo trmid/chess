@@ -6,66 +6,132 @@
     <title>Chess</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="src/chess_style.css">
+    <link rel="stylesheet" href="src/main.css">
+    <link rel="stylesheet" href="src/chess.css">
+    <script src="src/chess.js"></script>
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+
+    <!-- GET variables -->
+    <script>
+
+
+        // load game if variable is present
+
+    </script>
 </head>
 
 <body>
-    <div id="wrapper">
-        <br>
-        <h1 id="title">Chess</h1>
-        <div id="menu-buttons">
-            <div style="height: 30px; width: 100%;"></div>
-            <button onclick="start_ai();">Player vs. AI</button>
-            <br>
-            <br>
-            <button onclick="start_two_player();">Player vs. Player</button>
-        </div>
-        <div id="board-container" style="display: none;">
-            <div id="table-container">
-                <table id="board">
-                </table>
-            </div>
-            <button onclick="undo();">Undo</button>
 
+    <header>
+        <div>
+            <div id="title">
+                <h1>Chess</h1>
+                <div id="nav-toggle" class="mobile-only"></div>
+            </div>
+            <nav class="hide-on-mobile">
+                <button id="new-game-btn">New Game</button>
+                <div id="play-options" style="display: none;">
+                    <button id="play-player">vs. Player</button>
+                    <button id="play-ai-easy">vs. AI <span style="color: green">(easy)</span></button>
+                    <button id="play-ai-normal">vs. AI <span style="color: dodgerblue">(normal)</span></button>
+                    <button id="play-ai-hard">vs. AI <span style="color: salmon">(hard)</span></button>
+                </div>
+                <button>Save</button>
+                <button>Share</button>
+            </nav>
         </div>
-        <div id="footer">
-            © 2020 Trevor Richard
-        </div>
+        <footer class="hide-on-mobile"> © 2020 Trevor Richard </footer>
+    </header>
+
+    <div id="chess-container">
+        <!-- container for the chess board -->
     </div>
 
-    <script src="src/chess.js"></script>
+    <footer class="mobile-only"> © 2020 Trevor Richard </footer>
+
+    <!-- On Load -->
     <script>
-        var board; // This variable stores our chess board information as an object
 
-        var turn_number = 0;
-        var game_over = false;
-        var ai;
-        var last_board;
+        const _GET = {};
 
+        var board;
 
-        // The window.onload function is great for initializing variables when they require a defined function to be created.
         window.onload = function () {
-            board = new Chess_Board(); // This creates a new Chess_Board object and assigns it to our variable
-            board.setup();
+
+            // Get GET vars
+            parse_get_vars(_GET);
+
+            // Event Listeners
+            link_event_listeners();
+
+            // Check for game load
+            if (!check_load_game(_GET)) {
+
+                // Append a default game board
+                board = new Board({ parent_elem: $("#chess-container") });
+
+            }
+
         }
 
-        function start_two_player() {
-            ai = false;
-            show_board();
+        function parse_get_vars(_GET) {
+            const url = new URL(location.href);
+
+            const game = url.searchParams.get('game');
+            if (game)
+                _GET.game = game;
+
+            const data = url.searchParams.get('data');
+            if (data)
+                _GET.data = data;
+
+            const side = url.searchParams.get('side');
+            if (side)
+                _GET.side = side;
+
         }
 
-        function start_ai() {
-            ai = true;
-            show_board();
+        function check_load_game(game_vars) {
+            if (!game_vars || !game_vars.hasOwnProperty("game")) return false;
+            game_vars.parent_elem = $("#chess-container");
+            board = new Board(game_vars);
+            return true;
         }
 
-        function show_board() {
-            document.getElementById("board-container").style = "display: block;";
-            document.getElementById("menu-buttons").style = "display: none;";
-            document.getElementById("board").scrollIntoView();
-        }
+        function link_event_listeners() {
+            // New Game
+            $("#new-game-btn").on("click", () => {
+                $("#play-options").toggle("fast");
+            });
 
+            // nav toggle
+            $("#nav-toggle").on("click", () => {
+                $("nav").toggle("fast");
+            });
+
+            // PvP
+            $("#play-player").on("click", () => {
+                window.location.assign("/?game=0");
+            });
+
+            // AI Easy
+            $("#play-ai-easy").on("click", () => {
+                window.location.assign("/?game=1");
+            });
+
+            // AI Normal
+            $("#play-ai-normal").on("click", () => {
+                window.location.assign("/?game=2");
+            });
+
+            // AI Hard
+            $("#play-ai-hard").on("click", () => {
+                window.location.assign("/?game=3");
+            });
+
+        }
     </script>
+
 </body>
 
 </html>

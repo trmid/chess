@@ -1,0 +1,161 @@
+:root{
+    --nav-bg: white;
+    --btn-color: #eee;
+    --nav-color: rgb(49, 57, 59);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html, body{
+    margin: 0;
+    padding: 0;
+    position: relative;
+    background-color: rgb(49, 57, 59);
+    color: white;
+    width: 100%;
+    height: 100%;
+    font-family: 'Trebuchet MS', 'Lucida Sans Unicode', 'Lucida Grande', 'Lucida Sans', Arial, sans-serif;
+}
+
+body{
+    overflow: hidden;
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: stretch;
+    flex-wrap: nowrap;
+}
+
+header{
+    display: flex;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    justify-content: space-between;
+
+    flex: 0 0 auto;
+    position: relative;
+    height: 100%;
+    min-width: 20em;
+    background-color: var(--nav-bg);
+    color: var(--nav-color);
+}
+
+#title{
+    margin-left: 1em;
+}
+
+nav{
+    margin: 1em;
+    display: flex;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    align-items: stretch;
+}
+
+nav button{
+    text-align: left;
+    padding: 0.5em;
+    margin: 0.5em;
+    border: none;
+    background-color: var(--btn-color);
+}
+
+#play-options{
+    display: flex;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    align-items: stretch;
+    margin-left: 1em;
+
+}
+
+footer{
+    margin: 1em;
+    font-size: small;
+}
+
+#chess-container{
+    flex: 3 0 auto;
+    position: relative;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    justify-content: space-around;
+    align-items: center;
+}
+
+.mobile-only{
+    display: none;
+}
+
+@media only screen and (max-aspect-ratio: 1/1){
+
+    body{
+        flex-direction: column;
+        justify-content: space-between;
+    }
+
+    header{
+        width: 100%;
+        height: fit-content;
+    }
+
+    nav{
+        margin: 0;
+        padding: 1em;
+        width: 100%;
+        z-index: 5;
+        display: hidden;
+        background-color: var(--nav-bg);
+        color: var(--nav-color);
+        position: absolute;
+    }
+
+    footer{
+        flex: 0 0 auto;
+    }
+
+    #title{
+        padding: 1em;
+        margin: 0;
+        display: flex;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    #title *{
+        margin: 0;
+    }
+
+    #nav-toggle{
+        position: relative;
+        width: 1.8em;
+        height: 1.6em;
+        border-top: 0.3em solid var(--nav-color);
+        border-bottom: 0.3em solid var(--nav-color);
+    }
+
+    #nav-toggle::after{
+        content: "";
+        position: absolute;
+        top: 36%;
+        left: 0;
+        width: 100%;
+        border-top: 0.3em solid var(--nav-color);
+    }
+
+    .hide-on-mobile{
+        display: none;
+    }
+
+    .mobile-only{
+        display: inherit;
+    }
+
+}

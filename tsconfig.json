@@ -1,0 +1,15 @@
+{
+    "compilerOptions": {
+        "target": "ES6",
+        "module": "System",
+        "noImplicitAny": true,
+        "removeComments": true,
+        "sourceMap": false,
+        "esModuleInterop": true,
+        "strict": true,
+        "outFile": "src/chess.js"
+    },
+    "files": [
+        "src/ts/board.ts"
+    ]
+}
