@@ -1,6 +1,6 @@
 "use strict";
 class Move {
-    constructor(piece, x, y, type = 'blocked') {
+    constructor(piece, x, y, type = 'blocked', captured_piece) {
         this.piece = piece;
         this.x = x;
         this.y = y;
@@ -9,22 +9,69 @@ class Move {
             y: piece.pos.y
         };
         this.set_type(type);
+        if (captured_piece) {
+            this.capture(captured_piece);
+        }
     }
     execute() {
+        const board = this.piece.board;
+        board.en_passant = undefined;
+        if (this.is_stale()) {
+            board.halfturn_num++;
+        }
+        else {
+            board.halfturn_num = 0;
+        }
         if (this.captured_piece) {
             this.captured_piece.take();
+        }
+        else {
+            if (this.piece instanceof King) {
+                if (this.piece.color == 'w') {
+                    board.castles.K = false;
+                    board.castles.Q = false;
+                }
+                else {
+                    board.castles.k = false;
+                    board.castles.q = false;
+                }
+            }
+            if (this.piece instanceof Rook) {
+                if (this.piece.color == 'w') {
+                    if (this.piece.pos.x == 0)
+                        board.castles.Q = false;
+                    else
+                        board.castles.K = false;
+                }
+                else {
+                    if (this.piece.pos.x == 0)
+                        board.castles.q = false;
+                    else
+                        board.castles.k = false;
+                }
+            }
         }
         this.piece.move(this);
         if (this.after) {
             this.after();
         }
+        if (board.turn == 'b') {
+            board.turn_num++;
+            board.turn = 'w';
+        }
+        else {
+            board.turn = 'b';
+        }
+    }
+    is_stale() {
+        return !(this.piece instanceof Pawn || this.captured_piece !== undefined);
     }
     capture(piece) {
         this.captured_piece = piece;
     }
     set_type(type) {
         type = type.toLowerCase();
-        const valid_types = ['available', 'blocked', 'castle', 'pawn-rush', 'promotion', 'capture', 'en-passant'];
+        const valid_types = ['available', 'blocked', 'castle', 'pawn-rush', 'capture', 'en-passant', 'promote_r', 'promote_n', 'promote_b', 'promote_q'];
         let valid = false;
         for (let i = 0; i < valid_types.length; i++) {
             if (valid_types[i] === type)
@@ -33,21 +80,6 @@ class Move {
         if (!valid)
             throw new Error(`Invalid move type: ${type}`);
         this.type = type;
-        switch (type) {
-            case 'blocked':
-                this.tile_class = 'blocked_move';
-                break;
-            case 'available':
-            case 'pawn-rush':
-            case 'castle':
-            case 'promotion':
-                this.tile_class = 'available_move';
-                break;
-            case 'capture':
-            case 'en-passant':
-                this.tile_class = 'capture_move';
-                break;
-        }
     }
     get_code() {
         let code = Board.get_tile_code(this.origin) + Board.get_tile_code(this);
@@ -56,23 +88,57 @@ class Move {
         }
         return code;
     }
+    get_result() {
+        const board_copy = new Board({ fen_str: this.piece.board.get_fen_string() });
+        const piece = board_copy.piece_at(this.piece.pos);
+        let captured_piece = undefined;
+        if (this.captured_piece) {
+            captured_piece = board_copy.piece_at(this.captured_piece.pos);
+            if (!captured_piece)
+                throw new Error("Could not find copy of captured piece in board copy.");
+        }
+        if (!piece)
+            throw new Error("Could not find copy of piece in board copy.");
+        (new Move(piece, this.x, this.y, this.type, captured_piece)).execute();
+        return board_copy;
+    }
 }
 class Piece {
     static opponent(color) {
         return color == 'w' ? 'b' : 'w';
     }
     constructor(x, y, color, board) {
-        this.color = color;
+        this.color = color == 'w' ? 'w' : 'b';
         this.pos = { x: x, y: y };
         this.board = board;
-        this.elem = this.make_elem();
-        this.board.tiles[x][y] = this;
+        this.add_to_board();
+    }
+    add_to_board() {
+        if (this.board.board_elem) {
+            this.elem = this.make_elem();
+            this.board.place_piece_at(this, this.pos);
+        }
+        this.board.tiles[this.pos.x][this.pos.y] = this;
+        this.board.pieces[this.color].push(this);
+    }
+    get_valid_moves() {
+        const moves = this instanceof King ? this.get_moves().concat(this.get_castle_moves()) : this.get_moves();
+        for (let i = 0; i < moves.length; i++) {
+            const move = moves[i];
+            if (move.type !== 'blocked' && move.get_result().is_check(move.piece.color == 'w' ? 'b' : 'w')) {
+                move.type = 'blocked';
+            }
+        }
+        ;
+        return moves;
     }
     move(pos) {
         this.board.tiles[this.pos.x][this.pos.y] = undefined;
         this.board.tiles[pos.x][pos.y] = this;
-        this.elem.remove();
-        this.board.place_piece_at(this, pos);
+        if (this.elem) {
+            this.elem.remove();
+            this.board.place_piece_at(this, pos);
+        }
         this.pos = pos;
     }
     take() {
@@ -80,9 +146,7 @@ class Piece {
         switch (this.color) {
             case 'w':
             case 'b':
-                const idx = this.board.pieces[this.color].findIndex(piece => piece == this);
-                delete this.board.pieces[this.color][idx];
-                this.elem.remove();
+                this.board.remove_piece(this);
                 break;
             default:
                 console.error(`Cannot find piece with color: ${this.color}!`);
@@ -186,9 +250,16 @@ class Pawn extends Piece {
         if (this.color == 'b')
             far_y = 0;
         if (this.pos.y + dir == far_y) {
-            const promotion = new Move(this, this.pos.x, this.pos.y + dir, 'promotion');
-            if (Board.in_bounds(promotion) && !this.board.has_piece_at(promotion)) {
-                moves.push(promotion);
+            const promotion_tile = { x: this.pos.x, y: this.pos.y + dir };
+            if (Board.in_bounds(promotion_tile) && !this.board.has_piece_at(promotion_tile)) {
+                const options = ['r', 'b', 'n', 'q'];
+                options.forEach(type => {
+                    const promotion = new Move(this, promotion_tile.x, promotion_tile.y, `promote_${type}`);
+                    moves.push(promotion);
+                    promotion.after = () => {
+                        this.promote_to(type);
+                    };
+                });
             }
         }
         else {
@@ -201,6 +272,26 @@ class Pawn extends Piece {
             }
         }
         return moves;
+    }
+    promote_to(type) {
+        this.board.remove_piece(this);
+        let new_piece;
+        switch (type) {
+            case 'r':
+                new_piece = new Rook(this.pos.x, this.pos.y, this.color, this.board);
+                break;
+            case 'b':
+                new_piece = new Bishop(this.pos.x, this.pos.y, this.color, this.board);
+                break;
+            case 'n':
+                new_piece = new Knight(this.pos.x, this.pos.y, this.color, this.board);
+                break;
+            case 'q':
+                new_piece = new Queen(this.pos.x, this.pos.y, this.color, this.board);
+                break;
+        }
+        if (!new_piece)
+            throw new Error(`Could not promote to type ${type}.`);
     }
     make_elem() {
         return $(document.createElement("img"))
@@ -276,6 +367,74 @@ class Queen extends Piece {
     }
 }
 class King extends Piece {
+    get_castle_moves() {
+        const moves = new Array();
+        if (this.color == 'w') {
+            if (this.board.castles.K) {
+                const castle = new Move(this, 6, 0);
+                moves.push(castle);
+                if (!this.board.has_piece_at({ x: 5, y: 0 }) && !this.board.has_piece_at({ x: 6, y: 0 })) {
+                    if (!this.board.is_check()) {
+                        castle.set_type('castle');
+                        castle.after = () => {
+                            const rook = this.board.piece_at({ x: 7, y: 0 });
+                            if (!rook)
+                                throw new Error("Rook expected at H1 for castle.");
+                            rook.move({ x: 5, y: 0 });
+                        };
+                    }
+                }
+            }
+            if (this.board.castles.Q) {
+                const castle = new Move(this, 2, 0);
+                moves.push(castle);
+                if (!this.board.has_piece_at({ x: 1, y: 0 }) && !this.board.has_piece_at({ x: 2, y: 0 }) && !this.board.has_piece_at({ x: 3, y: 0 })) {
+                    if (!this.board.is_check()) {
+                        castle.set_type('castle');
+                        castle.after = () => {
+                            const rook = this.board.piece_at({ x: 0, y: 0 });
+                            if (!rook)
+                                throw new Error("Rook expected at A1 for castle.");
+                            rook.move({ x: 3, y: 0 });
+                        };
+                    }
+                }
+            }
+        }
+        else {
+            if (this.board.castles.k) {
+                const castle = new Move(this, 6, 7);
+                moves.push(castle);
+                if (!this.board.has_piece_at({ x: 5, y: 7 }) && !this.board.has_piece_at({ x: 6, y: 7 })) {
+                    if (!this.board.is_check()) {
+                        castle.set_type('castle');
+                        castle.after = () => {
+                            const rook = this.board.piece_at({ x: 7, y: 7 });
+                            if (!rook)
+                                throw new Error("Rook expected at H8 for castle.");
+                            rook.move({ x: 5, y: 7 });
+                        };
+                    }
+                }
+            }
+            if (this.board.castles.q) {
+                const castle = new Move(this, 2, 7);
+                moves.push(castle);
+                if (!this.board.has_piece_at({ x: 1, y: 7 }) && !this.board.has_piece_at({ x: 2, y: 7 }) && !this.board.has_piece_at({ x: 3, y: 7 })) {
+                    if (!this.board.is_check()) {
+                        castle.set_type('castle');
+                        castle.after = () => {
+                            const rook = this.board.piece_at({ x: 0, y: 7 });
+                            if (!rook)
+                                throw new Error("Rook expected at A8 for castle.");
+                            rook.move({ x: 3, y: 7 });
+                        };
+                    }
+                }
+            }
+        }
+        return moves;
+    }
     get_moves() {
         const moves = new Array();
         const dir = [
@@ -311,12 +470,16 @@ class King extends Piece {
     }
 }
 class Board {
-    constructor({ fen_str = Board.START_FEN, side = 'w', parent_elem }) {
+    constructor({ fen_str = Board.START_FEN, side = 'w', parent_elem, tile_onclick }) {
         this.turn = 'w';
         this.side = side;
         this.piece_set_name = "kiffset_light";
-        $(parent_elem).html("");
-        this.append_to(parent_elem);
+        this.king = { 'w': undefined, 'b': undefined };
+        this.tile_onclick = tile_onclick;
+        if (parent_elem) {
+            $(parent_elem).html("");
+            this.append_to(parent_elem);
+        }
         this.load_fen(fen_str);
     }
     static in_bounds(pos) {
@@ -333,9 +496,8 @@ class Board {
     }
     load_fen(fen_str) {
         const args = fen_str.split(' ');
-        console.log(args);
         const ranks = args[0].split('/');
-        this.turn = args[1];
+        this.turn = args[1] == 'b' ? 'b' : 'w';
         this.castles = {
             K: args[2].includes('K'),
             Q: args[2].includes('Q'),
@@ -383,23 +545,19 @@ class Board {
                             piece = new Queen(file, rank, side, this);
                             break;
                         case 'K':
-                            piece = new King(file, rank, side, this);
+                            const king = new King(file, rank, side, this);
+                            this.king[side] = king;
+                            piece = king;
                             break;
                     }
                     if (!piece) {
                         throw new Error(`Piece type [${char}] is not a valid FEN piece code`);
                     }
-                    this.tiles[file][rank] = piece;
-                    this.pieces[side].push(piece);
                     file++;
                 }
                 char_num++;
             }
         }
-        this.pieces['w'].concat(this.pieces['b']).forEach((piece) => {
-            const tile = `${String.fromCharCode(('A').charCodeAt(0) + piece.pos.x)}${piece.pos.y + 1}`;
-            $(`td[tile=${tile}]`).append(piece.elem);
-        });
     }
     append_to(elem) {
         const board = $(document.createElement("table")).addClass("chess-board");
@@ -421,50 +579,12 @@ class Board {
                     .attr("y", row - 1)
                     .addClass(((row % 2) + col) % 2 == 0 ? "white-tile" : "black-tile")
                     .on("click", (e) => {
+                    const code = `${char}${row}`;
+                    const x = col;
+                    const y = row - 1;
                     const piece = this.has_piece_at({ x: col, y: row - 1 }, this.turn);
-                    console.log(piece);
-                    if (piece) {
-                        const moves = piece.get_moves();
-                        this.remove_all_highlights();
-                        $(e.delegateTarget).addClass('selected');
-                        moves.forEach(move => {
-                            $(`td[x=${move.x}][y=${move.y}]`)
-                                .addClass(move.tile_class);
-                        });
-                    }
-                    else if ($(e.delegateTarget).hasClass('available_move') || $(e.delegateTarget).hasClass('capture_move')) {
-                        const selected = $('.selected');
-                        console.log(selected);
-                        const selected_pos = {
-                            x: parseInt(selected.attr('x') || ""),
-                            y: parseInt(selected.attr('y') || "")
-                        };
-                        const selected_piece = this.piece_at(selected_pos);
-                        const moves = selected_piece === null || selected_piece === void 0 ? void 0 : selected_piece.get_moves();
-                        console.log(moves);
-                        const pos = {
-                            x: parseInt($(e.delegateTarget).attr('x') || ""),
-                            y: parseInt($(e.delegateTarget).attr('y') || "")
-                        };
-                        if (moves) {
-                            for (let i = 0; i < moves.length; i++) {
-                                const move = moves[i];
-                                if (move.x == pos.x && move.y == pos.y) {
-                                    this.en_passant = undefined;
-                                    move.execute();
-                                    this.remove_all_highlights();
-                                    this.turn = this.turn == 'w' ? 'b' : 'w';
-                                    const url = new URL(location.href);
-                                    url.searchParams.set('fen', this.get_fen_string());
-                                    window.history.pushState({}, '', url.toString());
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    else {
-                        this.remove_all_highlights();
-                    }
+                    if (this.tile_onclick)
+                        tile_onclick(e.delegateTarget, code, x, y, piece);
                 });
                 tr.append(tile);
                 if (col == 0) {
@@ -503,6 +623,12 @@ class Board {
     piece_at(pos) {
         return this.tiles[pos.x][pos.y];
     }
+    remove_piece(piece) {
+        var _a;
+        const idx = this.pieces[piece.color].findIndex(p => p == piece);
+        delete this.pieces[piece.color][idx];
+        (_a = piece.elem) === null || _a === void 0 ? void 0 : _a.remove();
+    }
     has_enpassant_at(pos, color) {
         if (this.en_passant && this.en_passant.x == pos.x && this.en_passant.y == pos.y) {
             const en_passant_piece = this.en_passant.y == 2 ?
@@ -527,13 +653,9 @@ class Board {
         }
     }
     place_piece_at(piece, pos) {
-        $(`td[x=${pos.x}][y=${pos.y}]`).append(piece.elem);
-    }
-    remove_all_highlights() {
-        $('.selected').removeClass('selected');
-        $('.blocked_move').removeClass('blocked_move');
-        $('.available_move').removeClass('available_move');
-        $('.capture_move').removeClass('capture_move');
+        if (piece.elem) {
+            $(`td[x=${pos.x}][y=${pos.y}]`).append(piece.elem);
+        }
     }
     get_fen_string() {
         let fen = "";
@@ -594,5 +716,203 @@ class Board {
         fen += ` ${this.halfturn_num}`;
         return fen;
     }
+    get_moves(valid = true, side) {
+        let moves = new Array();
+        const pieces = this.pieces[side !== null && side !== void 0 ? side : this.turn];
+        pieces.forEach(piece => {
+            moves = moves.concat(valid ? piece.get_valid_moves() : piece.get_moves());
+        });
+        return moves;
+    }
+    is_check(side) {
+        const offence = side !== null && side !== void 0 ? side : (this.turn == 'w' ? 'b' : 'w');
+        const defence = offence == 'w' ? 'b' : 'w';
+        const moves = this.get_moves(false, offence);
+        for (let i = 0; i < moves.length; i++) {
+            const move = moves[i];
+            if (move.captured_piece == this.king[defence]) {
+                return true;
+            }
+        }
+        return false;
+    }
+    is_checkmate() {
+        return this.is_check() && this.has_no_moves();
+    }
+    is_stalemate() {
+        return !this.is_check() && this.has_no_moves();
+    }
+    has_no_moves() {
+        const defence_moves = this.get_moves(true, this.turn);
+        console.log(this.turn, defence_moves);
+        for (let i = 0; i < defence_moves.length; i++) {
+            if (defence_moves[i].type !== 'blocked') {
+                return false;
+            }
+        }
+        return true;
+    }
 }
 Board.START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+var board;
+window.onload = function () {
+    link_event_listeners();
+    if (!check_load_game(parse_get_vars())) {
+        board = new Board({
+            parent_elem: $("#chess-container"),
+            tile_onclick: tile_onclick
+        });
+    }
+};
+function parse_get_vars() {
+    const url = new URL(location.href);
+    const _GET = {};
+    const game = url.searchParams.get('game');
+    if (game)
+        _GET.game = parseInt(game);
+    let fen_str = url.searchParams.get('fen');
+    if (fen_str)
+        fen_str = unescape(fen_str);
+    if (fen_str)
+        _GET.fen_str = fen_str;
+    const side = url.searchParams.get('side');
+    if (side)
+        _GET.side = side;
+    return _GET;
+}
+function check_load_game(game_vars) {
+    if (!game_vars)
+        return false;
+    game_vars.parent_elem = $("#chess-container");
+    if (!game_vars.parent_elem) {
+        throw new Error("Chess Container is undefined.");
+    }
+    board = new Board({
+        fen_str: game_vars.fen_str,
+        side: game_vars.side == 'b' ? 'b' : 'w',
+        parent_elem: game_vars.parent_elem,
+        tile_onclick: tile_onclick
+    });
+    return true;
+}
+function tile_onclick(tile, code, x, y, piece) {
+    console.log(piece);
+    if (piece) {
+        const moves = piece.get_valid_moves();
+        console.log(moves);
+        remove_all_highlights();
+        $(tile).addClass('selected');
+        moves.forEach(move => {
+            let tile_class = "available_move";
+            switch (move.type) {
+                case 'blocked':
+                    tile_class = 'blocked_move';
+                    break;
+                case 'capture':
+                case 'en-passant':
+                    tile_class = 'capture_move';
+                    break;
+                case 'promote_r':
+                case 'promote_b':
+                case 'promote_n':
+                case 'promote_q':
+                    tile_class += ' promotion';
+                    break;
+            }
+            $(`td[x=${move.x}][y=${move.y}]`)
+                .addClass(tile_class);
+        });
+    }
+    else if ($(tile).hasClass('available_move') || $(tile).hasClass('capture_move')) {
+        const selected = $('.selected');
+        console.log(selected);
+        const selected_pos = {
+            x: parseInt(selected.attr('x') || ""),
+            y: parseInt(selected.attr('y') || "")
+        };
+        const selected_piece = board.piece_at(selected_pos);
+        const moves = selected_piece === null || selected_piece === void 0 ? void 0 : selected_piece.get_valid_moves();
+        const pos = {
+            x: x,
+            y: y
+        };
+        let promotion = undefined;
+        if ($(tile).hasClass('promotion')) {
+            const options = ['rook', 'bishop', 'knight', 'queen'];
+            let choice = "";
+            let valid = false;
+            while (!valid) {
+                choice = window.prompt(`What would you like to promote to? (rook, bishop, knight, queen)`) || "";
+                for (let i = 0; i < options.length; i++) {
+                    if (choice === options[i])
+                        valid = true;
+                }
+            }
+            switch (choice) {
+                case 'rook':
+                    promotion = 'promote_r';
+                    break;
+                case 'bishop':
+                    promotion = 'promote_b';
+                    break;
+                case 'knight':
+                    promotion = 'promote_n';
+                    break;
+                case 'queen':
+                    promotion = 'promote_q';
+                    break;
+            }
+        }
+        if (moves) {
+            for (let i = 0; i < moves.length; i++) {
+                const move = moves[i];
+                if (move.x == pos.x && move.y == pos.y && (!promotion || move.type === promotion)) {
+                    move.execute();
+                    remove_all_highlights();
+                    const url = new URL(location.href);
+                    url.searchParams.set('fen', board.get_fen_string());
+                    window.history.pushState({}, '', url.toString());
+                    if (board.is_checkmate()) {
+                        window.alert(`${board.turn == 'w' ? 'Black' : 'White'} won by checkmate in ${board.turn_num} turns.`);
+                    }
+                    else if (board.is_stalemate()) {
+                        window.alert(`${board.turn == 'w' ? 'Black' : 'White'} has entered stalemate in ${board.turn_num} turns.`);
+                    }
+                    else if (board.is_check()) {
+                        window.alert(`${board.turn == 'w' ? 'White' : 'Black'} is in check.`);
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    else {
+        remove_all_highlights();
+    }
+}
+function remove_all_highlights() {
+    $('.selected').removeClass('selected');
+    $('.blocked_move').removeClass('blocked_move');
+    $('.available_move').removeClass('available_move');
+    $('.capture_move').removeClass('capture_move');
+}
+function link_event_listeners() {
+    $("#new-game-btn").on("click", () => {
+        $("#play-options").toggle("fast");
+    });
+    $("#nav-toggle").on("click", () => {
+        $("nav").toggle("fast");
+    });
+    $("#play-player").on("click", () => {
+        window.location.assign("/?game=0");
+    });
+    $("#play-ai-easy").on("click", () => {
+        window.location.assign("/?game=1");
+    });
+    $("#play-ai-normal").on("click", () => {
+        window.location.assign("/?game=2");
+    });
+    $("#play-ai-hard").on("click", () => {
+        window.location.assign("/?game=3");
+    });
+}

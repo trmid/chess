@@ -2,8 +2,8 @@
 /// <reference path="./piece.ts" />
 
 interface Board {
-    turn: string
-    side: string
+    turn: 'w' | 'b'
+    side: 'w' | 'b'
     piece_set_name: string
     halfturn_num: number
     turn_num: number
@@ -13,10 +13,12 @@ interface Board {
         k: boolean
         q: boolean
     }
-    board_elem: HTMLTableElement | JQuery<HTMLTableElement>
+    king: { 'w'?: King, 'b'?: King }
+    board_elem?: HTMLTableElement | JQuery<HTMLTableElement>
     tiles: Array<Array<Piece | undefined>>
     pieces: { 'w': Array<Piece>, 'b': Array<Piece> }
     en_passant?: TilePos
+    tile_onclick?: (tile: JQuery<HTMLElement> | HTMLElement, tile_code: string, x: number, y: number, piece?: Piece) => void
 }
 
 class Board implements Board {
@@ -68,21 +70,27 @@ class Board implements Board {
     constructor({
         fen_str = Board.START_FEN,
         side = 'w',
-        parent_elem
+        parent_elem,
+        tile_onclick
     }: {
-        fen_str: string
-        side: string
-        parent_elem: HTMLElement | JQuery<HTMLElement>
+        fen_str?: string
+        side?: 'w' | 'b'
+        parent_elem?: HTMLElement | JQuery<HTMLElement>
+        tile_onclick?: (tile: JQuery<HTMLElement> | HTMLElement, tile_code: string, x: number, y: number, piece?: Piece) => void
     }) {
 
         // Set vars
         this.turn = 'w';
         this.side = side;
         this.piece_set_name = "kiffset_light";
+        this.king = { 'w': undefined, 'b': undefined };
+        this.tile_onclick = tile_onclick;
 
         // Append Board
-        $(parent_elem).html("");
-        this.append_to(parent_elem);
+        if (parent_elem) {
+            $(parent_elem).html("");
+            this.append_to(parent_elem);
+        }
 
         // Setup the board
         this.load_fen(fen_str);
@@ -92,9 +100,8 @@ class Board implements Board {
     load_fen(fen_str: string) {
 
         const args = fen_str.split(' ');
-        console.log(args);
         const ranks = args[0].split('/');
-        this.turn = args[1];
+        this.turn = args[1] == 'b' ? 'b' : 'w';
         this.castles = {
             K: args[2].includes('K'),
             Q: args[2].includes('Q'),
@@ -149,26 +156,20 @@ class Board implements Board {
                             piece = new Queen(file, rank, side, this);
                             break;
                         case 'K':
-                            piece = new King(file, rank, side, this);
+                            const king = new King(file, rank, side, this);
+                            this.king[side] = king;
+                            piece = king;
                             break;
                     }
                     if (!piece) {
                         throw new Error(`Piece type [${char}] is not a valid FEN piece code`);
                     }
-                    this.tiles[file][rank] = piece;
-                    this.pieces[side].push(piece);
                     file++;
                 }
                 char_num++;
             }
 
         }
-
-        // Setup visuals
-        this.pieces['w'].concat(this.pieces['b']).forEach((piece) => {
-            const tile = `${String.fromCharCode(('A').charCodeAt(0) + piece.pos.x)}${piece.pos.y + 1}`;
-            $(`td[tile=${tile}]`).append(piece.elem);
-        });
 
     }
 
@@ -193,77 +194,11 @@ class Board implements Board {
                     .attr("y", row - 1)
                     .addClass(((row % 2) + col) % 2 == 0 ? "white-tile" : "black-tile")
                     .on("click", (e) => {
+                        const code = `${char}${row}`;
+                        const x = col;
+                        const y = row - 1;
                         const piece = this.has_piece_at({ x: col, y: row - 1 }, this.turn);
-                        console.log(piece);
-                        if (piece) {
-
-                            // Get Moves
-                            const moves = piece.get_moves();
-
-                            // Remove all highlights
-                            this.remove_all_highlights();
-
-                            // Add new highlights
-                            $(e.delegateTarget).addClass('selected');
-                            moves.forEach(move => {
-                                $(`td[x=${move.x}][y=${move.y}]`)
-                                    .addClass(move.tile_class);
-                            });
-
-                        } else if ($(e.delegateTarget).hasClass('available_move') || $(e.delegateTarget).hasClass('capture_move')) {
-
-                            const selected = $('.selected');
-                            console.log(selected);
-                            const selected_pos = {
-                                x: parseInt(selected.attr('x') || ""),
-                                y: parseInt(selected.attr('y') || "")
-                            };
-                            const selected_piece = this.piece_at(selected_pos);
-                            const moves = selected_piece?.get_moves();
-                            console.log(moves);
-
-                            const pos = {
-                                x: parseInt($(e.delegateTarget).attr('x') || ""),
-                                y: parseInt($(e.delegateTarget).attr('y') || "")
-                            };
-
-                            if (moves) {
-
-                                for (let i = 0; i < moves.length; i++) {
-                                    const move = moves[i];
-                                    if (move.x == pos.x && move.y == pos.y) {
-
-                                        // Remove en passant
-                                        this.en_passant = undefined;
-
-                                        // Make the move
-                                        move.execute();
-
-                                        // Remove all highlights
-                                        this.remove_all_highlights();
-
-                                        // Switch turn and break
-                                        this.turn = this.turn == 'w' ? 'b' : 'w';
-
-                                        // Update the URL
-                                        const url = new URL(location.href);
-                                        url.searchParams.set('fen', this.get_fen_string());
-                                        window.history.pushState({}, '', url.toString());
-
-                                        // Break
-                                        break;
-
-                                    }
-                                }
-
-                            }
-
-                        } else {
-
-                            // Remove all highlights if empty tile selected
-                            this.remove_all_highlights();
-
-                        }
+                        if (this.tile_onclick) tile_onclick(e.delegateTarget, code, x, y, piece);
                     });
                 tr.append(tile);
                 // Row Labels
@@ -309,6 +244,12 @@ class Board implements Board {
         return this.tiles[pos.x][pos.y];
     }
 
+    remove_piece(piece: Piece) {
+        const idx = this.pieces[piece.color].findIndex(p => p == piece);
+        delete this.pieces[piece.color][idx];
+        piece.elem?.remove();
+    }
+
     has_enpassant_at(pos: TilePos, color?: string) {
         if (this.en_passant && this.en_passant.x == pos.x && this.en_passant.y == pos.y) {
             const en_passant_piece = this.en_passant.y == 2 ?
@@ -330,14 +271,9 @@ class Board implements Board {
     }
 
     place_piece_at(piece: Piece, pos: TilePos) {
-        $(`td[x=${pos.x}][y=${pos.y}]`).append(piece.elem);
-    }
-
-    remove_all_highlights() {
-        $('.selected').removeClass('selected');
-        $('.blocked_move').removeClass('blocked_move');
-        $('.available_move').removeClass('available_move');
-        $('.capture_move').removeClass('capture_move');
+        if (piece.elem) {
+            $(`td[x=${pos.x}][y=${pos.y}]`).append(piece.elem);
+        }
     }
 
     get_fen_string() {
@@ -402,6 +338,51 @@ class Board implements Board {
         fen += ` ${this.halfturn_num}`;
 
         return fen;
+    }
+
+    get_moves(valid = true, side?: 'w' | 'b') {
+        let moves = new Array<Move>();
+        const pieces = this.pieces[side ?? this.turn];
+        pieces.forEach(piece => {
+            moves = moves.concat(valid ? piece.get_valid_moves() : piece.get_moves());
+        });
+        return moves;
+    }
+
+    is_check(side?: 'w' | 'b') {
+        const offence = side ?? (this.turn == 'w' ? 'b' : 'w');
+        const defence = offence == 'w' ? 'b' : 'w';
+        const moves = this.get_moves(false, offence);
+        for (let i = 0; i < moves.length; i++) {
+            const move = moves[i];
+            if (move.captured_piece == this.king[defence]) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    is_checkmate() {
+        return this.is_check() && this.has_no_moves();
+    }
+
+    is_stalemate() {
+        return !this.is_check() && this.has_no_moves();
+    }
+
+    has_no_moves() {
+        const defence_moves = this.get_moves(true, this.turn);
+
+        console.log(this.turn, defence_moves);
+
+        // Check if there are any available valid moves
+        for (let i = 0; i < defence_moves.length; i++) {
+            if (defence_moves[i].type !== 'blocked') {
+                return false;
+            }
+        }
+
+        return true;
     }
 
 }

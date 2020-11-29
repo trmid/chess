@@ -7,9 +7,9 @@
         "sourceMap": false,
         "esModuleInterop": true,
         "strict": true,
-        "outFile": "src/javascripts/chess.js"
+        "outFile": "src/javascripts/game.js"
     },
     "files": [
-        "src/ts/board.ts"
+        "src/ts/game.ts"
     ]
 }

@@ -13,7 +13,7 @@
     <link rel="stylesheet" href="src/stylesheets/chess.css">
 
     <!-- Javscripts -->
-    <script src="src/javascripts/chess.js"></script>
+    <script src="src/javascripts/game.js"></script>
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
 
 </head>
@@ -46,91 +46,6 @@
     </div>
 
     <footer class="mobile-only"> © 2020 Trevor Richard </footer>
-
-    <!-- On Load -->
-    <script>
-
-        const _GET = {};
-
-        var board;
-
-        window.onload = function () {
-
-            // Get GET vars
-            parse_get_vars(_GET);
-
-            // Event Listeners
-            link_event_listeners();
-
-            // Check for game load
-            if (!check_load_game(_GET)) {
-
-                // Append a default game board
-                board = new Board({ parent_elem: $("#chess-container") });
-
-            }
-
-        }
-
-        function parse_get_vars(_GET) {
-            const url = new URL(location.href);
-
-            const game = url.searchParams.get('game');
-            if (game)
-                _GET.game = game;
-
-            let fen_str = url.searchParams.get('fen');
-            if (fen_str) fen_str = unescape(fen_str);
-            console.log(fen_str);
-            if (fen_str)
-                _GET.fen_str = fen_str;
-
-            const side = url.searchParams.get('side');
-            if (side)
-                _GET.side = side;
-
-        }
-
-        function check_load_game(game_vars) {
-            if (!game_vars) return false;
-            game_vars.parent_elem = $("#chess-container");
-            board = new Board(game_vars);
-            return true;
-        }
-
-        function link_event_listeners() {
-            // New Game
-            $("#new-game-btn").on("click", () => {
-                $("#play-options").toggle("fast");
-            });
-
-            // nav toggle
-            $("#nav-toggle").on("click", () => {
-                $("nav").toggle("fast");
-            });
-
-            // PvP
-            $("#play-player").on("click", () => {
-                window.location.assign("/?game=0");
-            });
-
-            // AI Easy
-            $("#play-ai-easy").on("click", () => {
-                window.location.assign("/?game=1");
-            });
-
-            // AI Normal
-            $("#play-ai-normal").on("click", () => {
-                window.location.assign("/?game=2");
-            });
-
-            // AI Hard
-            $("#play-ai-hard").on("click", () => {
-                window.location.assign("/?game=3");
-            });
-
-        }
-    </script>
 
 </body>
 
