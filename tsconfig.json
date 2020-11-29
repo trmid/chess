@@ -7,7 +7,7 @@
         "sourceMap": false,
         "esModuleInterop": true,
         "strict": true,
-        "outFile": "src/chess.js"
+        "outFile": "src/javascripts/chess.js"
     },
     "files": [
         "src/ts/board.ts"
