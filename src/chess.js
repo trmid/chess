@@ -395,7 +395,7 @@ class Board {
         this.type = type;
         this.data = data.toLowerCase();
         this.vs_ai = this.type > 0;
-        this.piece_set_name = "kiffset";
+        this.piece_set_name = "kiffset_light";
         $(parent_elem).html("");
         this.append_to(parent_elem);
         this.tiles = new Array(8);

@@ -2,16 +2,6 @@
 /// <reference path="./piece.ts" />
 
 /**
- * Idea:
- * 
- * Store the game data in GET vars that the browser can use to re-create the moves that happened
- * 
- * DATA:
- * 
- * move:    [a-h][1-8][a-h][1-8]
- * take:    [t][a-h][1-8]
- * promote: [p][a-h][1-8][q:r:b:k]
- * 
  * GAME:
  * 
  * 0 - player
@@ -19,7 +9,6 @@
  * 2 - ai normal
  * 3 - ai hard
  * 
- * http://127.0.0.1:5500/?data=a2a4a7a5pb2q&game=0
  */
 
 interface Board {
@@ -29,6 +18,7 @@ interface Board {
     turn: string
     side: string
     piece_set_name: string
+    halfturn_num: number
     turn_num: number
     board_elem: HTMLTableElement | JQuery<HTMLTableElement>
     tiles: Array<Array<Piece | undefined>>
@@ -37,6 +27,135 @@ interface Board {
 }
 
 class Board implements Board {
+
+    /**
+     * STATIC VARS
+     */
+
+    static START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+
+
+
+    /**
+     * Evaluates if the position is on the board and returns true or false
+     */
+
+    static in_bounds(pos: TilePos) {
+        return (pos.x >= 0 && pos.x < 8 && pos.y >= 0 && pos.y < 8);
+    }
+
+
+
+    /**
+     * Converts a coordinate position to a standard notation
+     */
+
+    static get_tile_code(pos: TilePos) {
+        return `${String.fromCharCode(('a').charCodeAt(0) + pos.x)}${pos.y + 1}`;
+    }
+
+
+
+    /**
+     * Converts standard tile location to coordinates
+     */
+
+    static get_coord(tile_code: string) {
+        return {
+            x: tile_code.charCodeAt(0) - ('a').charCodeAt(0),
+            y: parseInt(tile_code.charAt(1)) - 1
+        };
+    }
+
+
+    /**
+     * CONSTRUCTOR
+     */
+
+    constructor({
+        type = 0,
+        side = 'w',
+        data = "",
+        parent_elem
+    }: {
+        type: number
+        side: string
+        data: string
+        parent_elem: HTMLElement | JQuery<HTMLElement>
+    }) {
+
+        this.turn = 'w';
+        this.side = side;
+        this.turn_num = 0;
+        this.type = type;
+        this.data = data.toLowerCase();
+        this.vs_ai = this.type > 0;
+        this.piece_set_name = "kiffset_light";
+
+        $(parent_elem).html("");
+        this.append_to(parent_elem);
+
+        // Setup the board
+
+        this.tiles = new Array<Array<Piece | undefined>>(8);
+        for (let i = 0; i < 8; i++) {
+            this.tiles[i] = new Array<Piece | undefined>(8);
+        }
+
+
+        // Place the pieces
+        this.pieces = {
+            'w': [
+                new Rook(0, 0, 'w', this),
+                new Knight(1, 0, 'w', this),
+                new Bishop(2, 0, 'w', this),
+                new Queen(3, 0, 'w', this),
+                new King(4, 0, 'w', this),
+                new Bishop(5, 0, 'w', this),
+                new Knight(6, 0, 'w', this),
+                new Rook(7, 0, 'w', this)
+            ],
+            'b': [
+                new Rook(0, 7, 'b', this),
+                new Knight(1, 7, 'b', this),
+                new Bishop(2, 7, 'b', this),
+                new Queen(3, 7, 'b', this),
+                new King(4, 7, 'b', this),
+                new Bishop(5, 7, 'b', this),
+                new Knight(6, 7, 'b', this),
+                new Rook(7, 7, 'b', this)
+            ]
+        };
+        for (let col = 0; col < 8; col++) {
+            this.pieces['w'].push(new Pawn(col, 1, 'w', this));
+            this.pieces['b'].push(new Pawn(col, 6, 'b', this));
+        }
+
+        this.pieces['w'].forEach((piece) => {
+            const tile = `${String.fromCharCode(('A').charCodeAt(0) + piece.pos.x)}${piece.pos.y + 1}`;
+            $(`td[tile=${tile}]`).append(piece.elem);
+        });
+
+        this.pieces['b'].forEach((piece) => {
+            const tile = `${String.fromCharCode(('A').charCodeAt(0) + piece.pos.x)}${piece.pos.y + 1}`;
+            $(`td[tile=${tile}]`).append(piece.elem);
+        });
+
+
+
+        // Load the game data if it exists
+
+        if (this.data.length > 0) {
+
+            let data = this.data;
+
+            // while (data.length > 0) {
+            //     data = this.parse_next_move(data);
+            // }
+
+        }
+
+    }
 
     append_to(elem: HTMLElement | JQuery<HTMLElement>) {
 
@@ -144,106 +263,6 @@ class Board implements Board {
 
     }
 
-    constructor({
-        type = 0,
-        side = 'w',
-        data = "",
-        parent_elem
-    }: {
-        type: number
-        side: string
-        data: string
-        parent_elem: HTMLElement | JQuery<HTMLElement>
-    }) {
-
-        this.turn = 'w';
-        this.side = side;
-        this.turn_num = 0;
-        this.type = type;
-        this.data = data.toLowerCase();
-        this.vs_ai = this.type > 0;
-        this.piece_set_name = "kiffset";
-
-        $(parent_elem).html("");
-        this.append_to(parent_elem);
-
-        // Setup the board
-
-        this.tiles = new Array<Array<Piece | undefined>>(8);
-        for (let i = 0; i < 8; i++) {
-            this.tiles[i] = new Array<Piece | undefined>(8);
-        }
-
-
-        // Place the pieces
-        this.pieces = {
-            'w': [
-                new Rook(0, 0, 'w', this),
-                new Knight(1, 0, 'w', this),
-                new Bishop(2, 0, 'w', this),
-                new Queen(3, 0, 'w', this),
-                new King(4, 0, 'w', this),
-                new Bishop(5, 0, 'w', this),
-                new Knight(6, 0, 'w', this),
-                new Rook(7, 0, 'w', this)
-            ],
-            'b': [
-                new Rook(0, 7, 'b', this),
-                new Knight(1, 7, 'b', this),
-                new Bishop(2, 7, 'b', this),
-                new Queen(3, 7, 'b', this),
-                new King(4, 7, 'b', this),
-                new Bishop(5, 7, 'b', this),
-                new Knight(6, 7, 'b', this),
-                new Rook(7, 7, 'b', this)
-            ]
-        };
-        for (let col = 0; col < 8; col++) {
-            this.pieces['w'].push(new Pawn(col, 1, 'w', this));
-            this.pieces['b'].push(new Pawn(col, 6, 'b', this));
-        }
-
-        this.pieces['w'].forEach((piece) => {
-            const tile = `${String.fromCharCode(('A').charCodeAt(0) + piece.pos.x)}${piece.pos.y + 1}`;
-            $(`td[tile=${tile}]`).append(piece.elem);
-        });
-
-        this.pieces['b'].forEach((piece) => {
-            const tile = `${String.fromCharCode(('A').charCodeAt(0) + piece.pos.x)}${piece.pos.y + 1}`;
-            $(`td[tile=${tile}]`).append(piece.elem);
-        });
-
-
-
-        // Load the game data if it exists
-
-        if (this.data.length > 0) {
-
-            let data = this.data;
-
-            // while (data.length > 0) {
-            //     data = this.parse_next_move(data);
-            // }
-
-        }
-
-    }
-
-    static in_bounds(pos: TilePos) {
-        return (pos.x >= 0 && pos.x < 8 && pos.y >= 0 && pos.y < 8);
-    }
-
-    static get_tile_code(pos: TilePos) {
-        return `${String.fromCharCode(('a').charCodeAt(0) + pos.x)}${pos.y + 1}`;
-    }
-
-    static get_coord(tile_code: string) {
-        return {
-            x: tile_code.charCodeAt(0) - ('a').charCodeAt(0),
-            y: parseInt(tile_code.charAt(1)) - 1
-        };
-    }
-
     append_data(data: string) {
         this.data += data;
         this.update_query_string();
@@ -303,47 +322,5 @@ class Board implements Board {
         url.searchParams.set('data', this.data);
         history.pushState({}, '', url.toString());
     }
-
-    // parse_next_move(data: string) {
-    //     const lead = data.charAt(0);
-    //     const lead_code = lead.charCodeAt(0);
-    //     if (lead == 't') {
-
-    //         // Take
-    //         const tile = Board.get_coord(data.slice(0, 2));
-    //         // const piece = this.tiles[origin.x][origin.y];
-
-    //         if (!piece) {
-    //             throw new Error(`There is no piece to take at ${origin}.`);
-    //         }
-
-
-
-    //         return data.slice(4, data.length);
-
-    //     } else if (lead == 'p') {
-
-    //         // Promote
-
-    //     } else if (lead_code >= ('a').charCodeAt(0) && lead_code <= ('h').charCodeAt(0)) {
-
-    //         // Move
-    //         const origin = Board.get_coord(data.slice(0, 2));
-    //         const dest = Board.get_coord(data.slice(2, 4));
-    //         const piece = this.tiles[origin.x][origin.y];
-
-    //         if (!piece) {
-    //             throw new Error(`There is no piece to move at ${origin}.`);
-    //         }
-
-    //         (new Move(piece, dest.x, dest.y)).execute();
-
-    //         return data.slice(4, data.length);
-
-    //     } else {
-    //         throw new Error(`Invalid data format detected near '...${data}'`);
-    //     }
-
-    // }
 
 }
