@@ -3,6 +3,7 @@
 <html>
 
 <head>
+
     <title>Chess</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -78,9 +79,11 @@
             if (game)
                 _GET.game = game;
 
-            const data = url.searchParams.get('data');
-            if (data)
-                _GET.data = data;
+            let fen_str = url.searchParams.get('fen');
+            if (fen_str) fen_str = unescape(fen_str);
+            console.log(fen_str);
+            if (fen_str)
+                _GET.fen_str = fen_str;
 
             const side = url.searchParams.get('side');
             if (side)
@@ -89,7 +92,7 @@
         }
 
         function check_load_game(game_vars) {
-            if (!game_vars || !game_vars.hasOwnProperty("game")) return false;
+            if (!game_vars) return false;
             game_vars.parent_elem = $("#chess-container");
             board = new Board(game_vars);
             return true;

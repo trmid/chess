@@ -42,7 +42,6 @@ class Move implements Move {
             this.captured_piece.take();
         }
         this.piece.move(this);
-        this.piece.board.append_data(this.get_code());
         if (this.after) {
             this.after();
         }
@@ -134,7 +133,7 @@ abstract class Piece implements Piece {
             { x: 0, y: -1, blocked: false },
         ];
 
-        for (let i = 1; i < 7; i++) {
+        for (let i = 1; i < 8; i++) {
             for (let d = 0; d < dir.length; d++) {
                 if (!dir[d].blocked) {
                     const move = new Move(this, this.pos.x + i * dir[d].x, this.pos.y + i * dir[d].y);
@@ -168,7 +167,7 @@ abstract class Piece implements Piece {
             { x: -1, y: -1, blocked: false },
         ];
 
-        for (let i = 1; i < 7; i++) {
+        for (let i = 1; i < 8; i++) {
             for (let d = 0; d < dir.length; d++) {
                 if (!dir[d].blocked) {
                     const move = new Move(this, this.pos.x + i * dir[d].x, this.pos.y + i * dir[d].y);

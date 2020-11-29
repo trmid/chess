@@ -1,29 +1,22 @@
 
 /// <reference path="./piece.ts" />
 
-/**
- * GAME:
- * 
- * 0 - player
- * 1 - ai easy
- * 2 - ai normal
- * 3 - ai hard
- * 
- */
-
 interface Board {
-    type: number
-    vs_ai: boolean
-    data: string
     turn: string
     side: string
     piece_set_name: string
     halfturn_num: number
     turn_num: number
+    castles: {
+        K: boolean
+        Q: boolean
+        k: boolean
+        q: boolean
+    }
     board_elem: HTMLTableElement | JQuery<HTMLTableElement>
     tiles: Array<Array<Piece | undefined>>
     pieces: { 'w': Array<Piece>, 'b': Array<Piece> }
-    en_passant?: Move
+    en_passant?: TilePos
 }
 
 class Board implements Board {
@@ -73,87 +66,109 @@ class Board implements Board {
      */
 
     constructor({
-        type = 0,
+        fen_str = Board.START_FEN,
         side = 'w',
-        data = "",
         parent_elem
     }: {
-        type: number
+        fen_str: string
         side: string
-        data: string
         parent_elem: HTMLElement | JQuery<HTMLElement>
     }) {
 
+        // Set vars
         this.turn = 'w';
         this.side = side;
-        this.turn_num = 0;
-        this.type = type;
-        this.data = data.toLowerCase();
-        this.vs_ai = this.type > 0;
         this.piece_set_name = "kiffset_light";
 
+        // Append Board
         $(parent_elem).html("");
         this.append_to(parent_elem);
 
         // Setup the board
+        this.load_fen(fen_str);
 
+    }
+
+    load_fen(fen_str: string) {
+
+        const args = fen_str.split(' ');
+        console.log(args);
+        const ranks = args[0].split('/');
+        this.turn = args[1];
+        this.castles = {
+            K: args[2].includes('K'),
+            Q: args[2].includes('Q'),
+            k: args[2].includes('k'),
+            q: args[2].includes('q')
+        }
+        this.en_passant = Board.get_coord(args[3]);
+        this.turn_num = parseInt(args[4]);
+        this.halfturn_num = parseInt(args[5]);
+
+        // Create the tile arrays
         this.tiles = new Array<Array<Piece | undefined>>(8);
         for (let i = 0; i < 8; i++) {
             this.tiles[i] = new Array<Piece | undefined>(8);
         }
 
 
-        // Place the pieces
+        // Create the piece arrays
         this.pieces = {
-            'w': [
-                new Rook(0, 0, 'w', this),
-                new Knight(1, 0, 'w', this),
-                new Bishop(2, 0, 'w', this),
-                new Queen(3, 0, 'w', this),
-                new King(4, 0, 'w', this),
-                new Bishop(5, 0, 'w', this),
-                new Knight(6, 0, 'w', this),
-                new Rook(7, 0, 'w', this)
-            ],
-            'b': [
-                new Rook(0, 7, 'b', this),
-                new Knight(1, 7, 'b', this),
-                new Bishop(2, 7, 'b', this),
-                new Queen(3, 7, 'b', this),
-                new King(4, 7, 'b', this),
-                new Bishop(5, 7, 'b', this),
-                new Knight(6, 7, 'b', this),
-                new Rook(7, 7, 'b', this)
-            ]
+            'w': new Array<Piece>(),
+            'b': new Array<Piece>()
         };
-        for (let col = 0; col < 8; col++) {
-            this.pieces['w'].push(new Pawn(col, 1, 'w', this));
-            this.pieces['b'].push(new Pawn(col, 6, 'b', this));
+
+        // Place the pieces
+        for (let rank = 0; rank < ranks.length; rank++) {
+
+            let file = 0;
+            let char_num = 0;
+            while (file < 8) {
+                const char = ranks[7 - rank].charAt(char_num);
+                const blank_spaces = parseInt(char);
+                if (!isNaN(blank_spaces)) {
+                    file += blank_spaces;
+                } else {
+                    let piece: Piece | undefined = undefined;
+                    const type = char.toUpperCase();
+                    const side = type === char ? 'w' : 'b';
+                    switch (type) {
+                        case 'P':
+                            piece = new Pawn(file, rank, side, this);
+                            break;
+                        case 'R':
+                            piece = new Rook(file, rank, side, this);
+                            break;
+                        case 'N':
+                            piece = new Knight(file, rank, side, this);
+                            break;
+                        case 'B':
+                            piece = new Bishop(file, rank, side, this);
+                            break;
+                        case 'Q':
+                            piece = new Queen(file, rank, side, this);
+                            break;
+                        case 'K':
+                            piece = new King(file, rank, side, this);
+                            break;
+                    }
+                    if (!piece) {
+                        throw new Error(`Piece type [${char}] is not a valid FEN piece code`);
+                    }
+                    this.tiles[file][rank] = piece;
+                    this.pieces[side].push(piece);
+                    file++;
+                }
+                char_num++;
+            }
+
         }
 
-        this.pieces['w'].forEach((piece) => {
+        // Setup visuals
+        this.pieces['w'].concat(this.pieces['b']).forEach((piece) => {
             const tile = `${String.fromCharCode(('A').charCodeAt(0) + piece.pos.x)}${piece.pos.y + 1}`;
             $(`td[tile=${tile}]`).append(piece.elem);
         });
-
-        this.pieces['b'].forEach((piece) => {
-            const tile = `${String.fromCharCode(('A').charCodeAt(0) + piece.pos.x)}${piece.pos.y + 1}`;
-            $(`td[tile=${tile}]`).append(piece.elem);
-        });
-
-
-
-        // Load the game data if it exists
-
-        if (this.data.length > 0) {
-
-            let data = this.data;
-
-            // while (data.length > 0) {
-            //     data = this.parse_next_move(data);
-            // }
-
-        }
 
     }
 
@@ -218,6 +233,9 @@ class Board implements Board {
                                     const move = moves[i];
                                     if (move.x == pos.x && move.y == pos.y) {
 
+                                        // Remove en passant
+                                        this.en_passant = undefined;
+
                                         // Make the move
                                         move.execute();
 
@@ -226,6 +244,13 @@ class Board implements Board {
 
                                         // Switch turn and break
                                         this.turn = this.turn == 'w' ? 'b' : 'w';
+
+                                        // Update the URL
+                                        const url = new URL(location.href);
+                                        url.searchParams.set('fen', this.get_fen_string());
+                                        window.history.pushState({}, '', url.toString());
+
+                                        // Break
                                         break;
 
                                     }
@@ -263,11 +288,6 @@ class Board implements Board {
 
     }
 
-    append_data(data: string) {
-        this.data += data;
-        this.update_query_string();
-    }
-
     has_piece_at(pos: TilePos, color?: string) {
         const piece = this.piece_at(pos);
         if (piece instanceof Piece) {
@@ -291,14 +311,18 @@ class Board implements Board {
 
     has_enpassant_at(pos: TilePos, color?: string) {
         if (this.en_passant && this.en_passant.x == pos.x && this.en_passant.y == pos.y) {
+            const en_passant_piece = this.en_passant.y == 2 ?
+                this.piece_at({ x: this.en_passant.x, y: 3 }) :
+                this.piece_at({ x: this.en_passant.x, y: 4 });
+            if (!en_passant_piece) throw new Error("No Piece at expected en passant position.");
             if (color) {
-                if (this.en_passant.piece.color == color) {
-                    return this.en_passant.piece;
+                if (en_passant_piece.color == color) {
+                    return en_passant_piece;
                 } else {
                     return undefined;
                 }
             } else {
-                return this.en_passant.piece;
+                return en_passant_piece;
             }
         } else {
             return undefined;
@@ -316,11 +340,68 @@ class Board implements Board {
         $('.capture_move').removeClass('capture_move');
     }
 
-    update_query_string() {
-        const url = new URL(window.location.toString());
-        url.searchParams.set('game', '' + this.type);
-        url.searchParams.set('data', this.data);
-        history.pushState({}, '', url.toString());
+    get_fen_string() {
+        let fen = "";
+
+        for (let rank = 7; rank >= 0; rank--) {
+            let file = 0;
+            let blank = 0;
+            while (file < 8) {
+                const piece = this.piece_at({ x: file, y: rank });
+                if (piece) {
+                    if (blank > 0) {
+                        fen += blank;
+                        blank = 0;
+                    }
+                    if (piece instanceof Pawn) {
+                        fen += piece.color === 'w' ? 'P' : 'p';
+                    } else if (piece instanceof Rook) {
+                        fen += piece.color === 'w' ? 'R' : 'r';
+                    } else if (piece instanceof Knight) {
+                        fen += piece.color === 'w' ? 'N' : 'n';
+                    } else if (piece instanceof Bishop) {
+                        fen += piece.color === 'w' ? 'B' : 'b';
+                    } else if (piece instanceof Queen) {
+                        fen += piece.color === 'w' ? 'Q' : 'q';
+                    } else if (piece instanceof King) {
+                        fen += piece.color === 'w' ? 'K' : 'k';
+                    }
+                } else {
+                    blank++;
+                }
+                file++;
+            }
+            if (blank > 0) {
+                fen += blank;
+                blank = 0;
+            }
+            if (rank > 0) fen += "/";
+        }
+
+        // Turn
+        fen += ` ${this.turn}`;
+
+        // Castles
+        let castles = `${this.castles.K ? 'K' : ''}${this.castles.k ? 'k' : ''}${this.castles.Q ? 'Q' : ''}${this.castles.q ? 'q' : ''}`;
+        if (castles.length == 0) {
+            castles = '-';
+        }
+        fen += ` ${castles}`;
+
+        // En Passant
+        if (this.en_passant) {
+            fen += ` ${Board.get_tile_code(this.en_passant)}`;
+        } else {
+            fen += ` -`;
+        }
+
+        // Turn Number
+        fen += ` ${this.turn_num}`;
+
+        // Halfturn Number
+        fen += ` ${this.halfturn_num}`;
+
+        return fen;
     }
 
 }
