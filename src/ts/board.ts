@@ -18,6 +18,9 @@ interface Board {
     tiles: Array<Array<Piece | undefined>>
     pieces: { 'w': Array<Piece>, 'b': Array<Piece> }
     en_passant?: TilePos
+    no_moves?: boolean
+    checkmate?: boolean
+    stalemate?: boolean
     tile_onclick?: (tile: JQuery<HTMLElement> | HTMLElement, tile_code: string, x: number, y: number, piece?: Piece) => void
 }
 
@@ -349,6 +352,18 @@ class Board implements Board {
         return moves;
     }
 
+    get_executable_moves() {
+        const moves = this.get_moves();
+        const exe_moves = new Array<Move>();
+        for (let i = 0; i < moves.length; i++) {
+            const move = moves[i];
+            if (move.type !== 'blocked') {
+                exe_moves.push(move);
+            }
+        }
+        return exe_moves;
+    }
+
     is_check(side?: 'w' | 'b') {
         const offence = side ?? (this.turn == 'w' ? 'b' : 'w');
         const defence = offence == 'w' ? 'b' : 'w';
@@ -373,8 +388,6 @@ class Board implements Board {
     has_no_moves() {
         const defence_moves = this.get_moves(true, this.turn);
 
-        console.log(this.turn, defence_moves);
-
         // Check if there are any available valid moves
         for (let i = 0; i < defence_moves.length; i++) {
             if (defence_moves[i].type !== 'blocked') {
@@ -383,6 +396,33 @@ class Board implements Board {
         }
 
         return true;
+    }
+
+
+    /**
+     * Positive value is advantage for white, negative is advantage for black
+     */
+    get_value() {
+        const no_moves = this.has_no_moves();
+        const check = this.is_check();
+        const checkmate = check && no_moves;
+        const stalemate = !check && no_moves;
+        if (checkmate) return this.turn == 'b' ? Infinity : -Infinity;
+        let val = 0;
+        this.pieces.w.forEach(piece => {
+            if (!(piece instanceof King)) {
+                val += piece.get_worth();
+            }
+        });
+        this.pieces.b.forEach(piece => {
+            if (!(piece instanceof King)) {
+                val -= piece.get_worth();
+            }
+        });
+        if (stalemate) {
+            return -val * Infinity;
+        }
+        return val;
     }
 
 }

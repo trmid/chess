@@ -216,6 +216,9 @@ class Piece {
     }
 }
 class Pawn extends Piece {
+    get_worth() {
+        return 1;
+    }
     get_moves() {
         const moves = new Array();
         const dir = this.color == 'w' ? 1 : -1;
@@ -300,6 +303,9 @@ class Pawn extends Piece {
     }
 }
 class Rook extends Piece {
+    get_worth() {
+        return 5;
+    }
     get_moves() {
         return this.get_straight_moves();
     }
@@ -310,6 +316,9 @@ class Rook extends Piece {
     }
 }
 class Knight extends Piece {
+    get_worth() {
+        return 3;
+    }
     get_moves() {
         const moves = new Array();
         const motions = [
@@ -347,6 +356,9 @@ class Knight extends Piece {
     }
 }
 class Bishop extends Piece {
+    get_worth() {
+        return 3;
+    }
     get_moves() {
         return this.get_diagonal_moves();
     }
@@ -357,6 +369,9 @@ class Bishop extends Piece {
     }
 }
 class Queen extends Piece {
+    get_worth() {
+        return 9;
+    }
     get_moves() {
         return this.get_diagonal_moves().concat(this.get_straight_moves());
     }
@@ -367,6 +382,9 @@ class Queen extends Piece {
     }
 }
 class King extends Piece {
+    get_worth() {
+        return Infinity;
+    }
     get_castle_moves() {
         const moves = new Array();
         if (this.color == 'w') {
@@ -724,6 +742,17 @@ class Board {
         });
         return moves;
     }
+    get_executable_moves() {
+        const moves = this.get_moves();
+        const exe_moves = new Array();
+        for (let i = 0; i < moves.length; i++) {
+            const move = moves[i];
+            if (move.type !== 'blocked') {
+                exe_moves.push(move);
+            }
+        }
+        return exe_moves;
+    }
     is_check(side) {
         const offence = side !== null && side !== void 0 ? side : (this.turn == 'w' ? 'b' : 'w');
         const defence = offence == 'w' ? 'b' : 'w';
@@ -744,7 +773,6 @@ class Board {
     }
     has_no_moves() {
         const defence_moves = this.get_moves(true, this.turn);
-        console.log(this.turn, defence_moves);
         for (let i = 0; i < defence_moves.length; i++) {
             if (defence_moves[i].type !== 'blocked') {
                 return false;
@@ -752,17 +780,46 @@ class Board {
         }
         return true;
     }
+    get_value() {
+        const no_moves = this.has_no_moves();
+        const check = this.is_check();
+        const checkmate = check && no_moves;
+        const stalemate = !check && no_moves;
+        if (checkmate)
+            return this.turn == 'b' ? Infinity : -Infinity;
+        let val = 0;
+        this.pieces.w.forEach(piece => {
+            if (!(piece instanceof King)) {
+                val += piece.get_worth();
+            }
+        });
+        this.pieces.b.forEach(piece => {
+            if (!(piece instanceof King)) {
+                val -= piece.get_worth();
+            }
+        });
+        if (stalemate) {
+            return -val * Infinity;
+        }
+        return val;
+    }
 }
 Board.START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 var board;
+var game_mode;
+var side;
 window.onload = function () {
+    const _GET = parse_get_vars();
+    game_mode = _GET.game || 0;
+    side = _GET.side == 'b' ? 'b' : 'w';
     link_event_listeners();
-    if (!check_load_game(parse_get_vars())) {
+    if (!check_load_game(_GET)) {
         board = new Board({
             parent_elem: $("#chess-container"),
             tile_onclick: tile_onclick
         });
     }
+    check_game_state();
 };
 function parse_get_vars() {
     const url = new URL(location.href);
@@ -796,7 +853,8 @@ function check_load_game(game_vars) {
     return true;
 }
 function tile_onclick(tile, code, x, y, piece) {
-    console.log(piece);
+    if (game_mode > 0 && side != board.turn)
+        return;
     if (piece) {
         const moves = piece.get_valid_moves();
         console.log(moves);
@@ -869,17 +927,15 @@ function tile_onclick(tile, code, x, y, piece) {
                 if (move.x == pos.x && move.y == pos.y && (!promotion || move.type === promotion)) {
                     move.execute();
                     remove_all_highlights();
-                    const url = new URL(location.href);
-                    url.searchParams.set('fen', board.get_fen_string());
-                    window.history.pushState({}, '', url.toString());
-                    if (board.is_checkmate()) {
-                        window.alert(`${board.turn == 'w' ? 'Black' : 'White'} won by checkmate in ${board.turn_num} turns.`);
-                    }
-                    else if (board.is_stalemate()) {
-                        window.alert(`${board.turn == 'w' ? 'Black' : 'White'} has entered stalemate in ${board.turn_num} turns.`);
-                    }
-                    else if (board.is_check()) {
-                        window.alert(`${board.turn == 'w' ? 'White' : 'Black'} is in check.`);
+                    update_url();
+                    const game_over = check_game_state();
+                    if (!game_over && game_mode > 0) {
+                        setTimeout(() => {
+                            const move = get_ai_move(board, game_mode);
+                            move === null || move === void 0 ? void 0 : move.execute();
+                            update_url();
+                            check_game_state();
+                        }, 0);
                     }
                     break;
                 }
@@ -890,11 +946,35 @@ function tile_onclick(tile, code, x, y, piece) {
         remove_all_highlights();
     }
 }
+function update_url() {
+    const url = new URL(location.href);
+    url.searchParams.set('fen', board.get_fen_string());
+    url.searchParams.set('game', "" + game_mode);
+    window.history.pushState({}, '', url.toString());
+}
+function check_game_state() {
+    const checkmate = board.is_checkmate();
+    const stalemate = board.is_stalemate();
+    const check = board.is_check();
+    setTimeout(() => {
+        if (checkmate) {
+            window.alert(`${board.turn == 'w' ? 'Black' : 'White'} won by checkmate in ${board.turn_num} turns.`);
+        }
+        else if (stalemate) {
+            window.alert(`${board.turn == 'w' ? 'Black' : 'White'} has entered stalemate in ${board.turn_num} turns.`);
+        }
+        else if (check) {
+            window.alert(`${board.turn == 'w' ? 'White' : 'Black'} is in check.`);
+        }
+    }, 0);
+    return checkmate || stalemate;
+}
 function remove_all_highlights() {
     $('.selected').removeClass('selected');
     $('.blocked_move').removeClass('blocked_move');
     $('.available_move').removeClass('available_move');
     $('.capture_move').removeClass('capture_move');
+    $('.promotion').removeClass('promotion');
 }
 function link_event_listeners() {
     $("#new-game-btn").on("click", () => {
@@ -906,13 +986,114 @@ function link_event_listeners() {
     $("#play-player").on("click", () => {
         window.location.assign("/?game=0");
     });
-    $("#play-ai-easy").on("click", () => {
+    $("#play-ai-beginner").on("click", () => {
         window.location.assign("/?game=1");
     });
-    $("#play-ai-normal").on("click", () => {
+    $("#play-ai-easy").on("click", () => {
         window.location.assign("/?game=2");
     });
-    $("#play-ai-hard").on("click", () => {
+    $("#play-ai-normal").on("click", () => {
         window.location.assign("/?game=3");
     });
+    $("#play-ai-hard").on("click", () => {
+        window.location.assign("/?game=4");
+    });
+}
+function get_ai_move(board, difficulty = 1, depth) {
+    const side = board.turn;
+    console.log(side);
+    const value_mult = (side == 'w' ? 1 : -1);
+    const moves = board.get_executable_moves();
+    if (moves.length == 0)
+        return undefined;
+    switch (difficulty) {
+        case 4: {
+            const explore_move = (move, data, depth = 1) => {
+                const result = move.get_result();
+                const moves = result.get_executable_moves();
+                for (let i = 0; i < moves.length; i++) {
+                    if (depth == 0) {
+                        const value = moves[i].get_result().get_value();
+                        data.total_value += value;
+                        data.num_tests++;
+                    }
+                    else {
+                        explore_move(moves[i], data, depth - 1);
+                    }
+                }
+            };
+            let best = random_move(moves);
+            if (!best)
+                return undefined;
+            let max = best.get_result().get_value() * value_mult;
+            for (let i = 0; i < moves.length; i++) {
+                const data = {
+                    move: moves[i],
+                    num_tests: 0,
+                    total_value: 0
+                };
+                explore_move(moves[i], data, 2);
+                data.total_value *= value_mult;
+                const avg = data.total_value / data.num_tests;
+                if (avg > max) {
+                    max = avg;
+                    best = moves[i];
+                }
+            }
+        }
+        case 3: {
+            const move_data = new Array();
+            if (depth === undefined)
+                depth = 1;
+            let best = undefined;
+            let max = -Infinity;
+            for (let i = 0; i < moves.length; i++) {
+                let result = moves[i].get_result();
+                if (depth > 0) {
+                    const opposing_move = get_ai_move(result, difficulty, depth - 1);
+                    if (opposing_move) {
+                        result = opposing_move.get_result();
+                    }
+                }
+                const value = result.get_value() * value_mult;
+                move_data.push({ move: moves[i], value: value });
+                if (value > max) {
+                    max = value;
+                    best = moves[i];
+                }
+            }
+            if (depth == 1) {
+                console.log(move_data);
+                console.log("best", max, best);
+            }
+            if (!best) {
+                console.log("no best move, returning random...");
+                return get_ai_move(board, 1);
+            }
+            return best;
+        }
+        case 2: {
+            let best = random_move(moves);
+            if (!best)
+                return undefined;
+            let max = best.get_result().get_value() * value_mult;
+            for (let i = 0; i < moves.length; i++) {
+                const value = moves[i].get_result().get_value() * value_mult;
+                console.log(moves[i], value);
+                if (value > max) {
+                    max = value;
+                    best = moves[i];
+                }
+            }
+            return best;
+        }
+        case 1:
+        default:
+            return random_move(moves);
+    }
+}
+function random_move(moves) {
+    if (moves.length == 0)
+        return undefined;
+    return moves[Math.floor(Math.random() * moves.length)];
 }

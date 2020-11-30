@@ -22,6 +22,7 @@ interface Piece {
     move(pos: TilePos): void
     get_moves(): Move[]
     make_elem(): HTMLImageElement | JQuery<HTMLImageElement>
+    get_worth(): number
 }
 
 class Move implements Move {
@@ -278,6 +279,10 @@ abstract class Piece implements Piece {
 
 class Pawn extends Piece implements Piece {
 
+    get_worth() {
+        return 1;
+    }
+
     get_moves() {
         const moves = new Array<Move>();
 
@@ -374,6 +379,10 @@ class Pawn extends Piece implements Piece {
 
 class Rook extends Piece implements Piece {
 
+    get_worth() {
+        return 5;
+    }
+
     get_moves() {
         return this.get_straight_moves();
     }
@@ -387,6 +396,10 @@ class Rook extends Piece implements Piece {
 }
 
 class Knight extends Piece implements Piece {
+
+    get_worth() {
+        return 3;
+    }
 
     get_moves() {
         const moves = new Array<Move>();
@@ -432,6 +445,10 @@ class Knight extends Piece implements Piece {
 
 class Bishop extends Piece implements Piece {
 
+    get_worth() {
+        return 3;
+    }
+
     get_moves() {
         return this.get_diagonal_moves();
     }
@@ -446,6 +463,10 @@ class Bishop extends Piece implements Piece {
 
 class Queen extends Piece implements Piece {
 
+    get_worth() {
+        return 9;
+    }
+
     get_moves() {
         return this.get_diagonal_moves().concat(this.get_straight_moves());
     }
@@ -459,6 +480,10 @@ class Queen extends Piece implements Piece {
 }
 
 class King extends Piece implements Piece {
+
+    get_worth() {
+        return Infinity;
+    }
 
     get_castle_moves() {
         const moves = new Array<Move>();

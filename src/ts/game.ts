@@ -1,14 +1,22 @@
 /// <reference path="./board.ts" />
 
 var board: Board;
+var game_mode: number;
+var side: 'w' | 'b';
 
 window.onload = function () {
+
+    const _GET = parse_get_vars();
+
+    // Game mode
+    game_mode = _GET.game || 0;
+    side = _GET.side == 'b' ? 'b' : 'w';
 
     // Event Listeners
     link_event_listeners();
 
     // Check for game load
-    if (!check_load_game(parse_get_vars())) {
+    if (!check_load_game(_GET)) {
 
         // Append a default game board
         board = new Board({
@@ -18,10 +26,13 @@ window.onload = function () {
 
     }
 
+    // Check game state
+    check_game_state();
+
 }
 
 interface GameVars {
-    game?: Number
+    game?: number
     fen_str?: string
     side?: string
     parent_elem?: JQuery<HTMLElement> | HTMLElement;
@@ -64,7 +75,9 @@ function check_load_game(game_vars: GameVars) {
 }
 
 function tile_onclick(tile: JQuery<HTMLElement> | HTMLElement, code: string, x: number, y: number, piece?: Piece) {
-    console.log(piece);
+
+    if (game_mode > 0 && side != board.turn) return; // Return if AI should move
+
     if (piece) {
 
         // Get Moves
@@ -145,17 +158,27 @@ function tile_onclick(tile: JQuery<HTMLElement> | HTMLElement, code: string, x: 
                     remove_all_highlights();
 
                     // Update the URL
-                    const url = new URL(location.href);
-                    url.searchParams.set('fen', board.get_fen_string());
-                    window.history.pushState({}, '', url.toString());
+                    update_url();
 
                     // Check game state
-                    if (board.is_checkmate()) {
-                        window.alert(`${board.turn == 'w' ? 'Black' : 'White'} won by checkmate in ${board.turn_num} turns.`);
-                    } else if (board.is_stalemate()) {
-                        window.alert(`${board.turn == 'w' ? 'Black' : 'White'} has entered stalemate in ${board.turn_num} turns.`);
-                    } else if (board.is_check()) {
-                        window.alert(`${board.turn == 'w' ? 'White' : 'Black'} is in check.`);
+                    const game_over = check_game_state();
+
+                    // Call AI if applicable
+                    if (!game_over && game_mode > 0) {
+
+                        setTimeout(() => {
+
+                            const move = get_ai_move(board, game_mode);
+                            move?.execute();
+
+                            // Update URL
+                            update_url();
+
+                            // Check game state
+                            check_game_state();
+
+                        }, 0);
+
                     }
 
                     // Break
@@ -174,11 +197,35 @@ function tile_onclick(tile: JQuery<HTMLElement> | HTMLElement, code: string, x: 
     }
 }
 
+function update_url() {
+    const url = new URL(location.href);
+    url.searchParams.set('fen', board.get_fen_string());
+    url.searchParams.set('game', "" + game_mode);
+    window.history.pushState({}, '', url.toString());
+}
+
+function check_game_state() {
+    const checkmate = board.is_checkmate();
+    const stalemate = board.is_stalemate();
+    const check = board.is_check();
+    setTimeout(() => {
+        if (checkmate) {
+            window.alert(`${board.turn == 'w' ? 'Black' : 'White'} won by checkmate in ${board.turn_num} turns.`);
+        } else if (stalemate) {
+            window.alert(`${board.turn == 'w' ? 'Black' : 'White'} has entered stalemate in ${board.turn_num} turns.`);
+        } else if (check) {
+            window.alert(`${board.turn == 'w' ? 'White' : 'Black'} is in check.`);
+        }
+    }, 0);
+    return checkmate || stalemate;
+}
+
 function remove_all_highlights() {
     $('.selected').removeClass('selected');
     $('.blocked_move').removeClass('blocked_move');
     $('.available_move').removeClass('available_move');
     $('.capture_move').removeClass('capture_move');
+    $('.promotion').removeClass('promotion');
 }
 
 function link_event_listeners() {
@@ -197,19 +244,125 @@ function link_event_listeners() {
         window.location.assign("/?game=0");
     });
 
+    // AI Beginner
+    $("#play-ai-beginner").on("click", () => {
+        window.location.assign("/?game=1");
+    });
+
     // AI Easy
     $("#play-ai-easy").on("click", () => {
-        window.location.assign("/?game=1");
+        window.location.assign("/?game=2");
     });
 
     // AI Normal
     $("#play-ai-normal").on("click", () => {
-        window.location.assign("/?game=2");
+        window.location.assign("/?game=3");
     });
 
     // AI Hard
     $("#play-ai-hard").on("click", () => {
-        window.location.assign("/?game=3");
+        window.location.assign("/?game=4");
     });
 
+}
+
+function get_ai_move(board: Board, difficulty = 1, depth?: number): Move | undefined {
+
+    const side = board.turn;
+    console.log(side);
+    const value_mult = (side == 'w' ? 1 : -1);
+    const moves = board.get_executable_moves();
+    if (moves.length == 0) return undefined;
+
+    switch (difficulty) {
+        case 4: {
+            interface MoveValue {
+                move: Move
+                num_tests: number
+                total_value: number
+            }
+            const explore_move = (move: Move, data: MoveValue, depth = 1) => {
+                const result = move.get_result();
+                const moves = result.get_executable_moves();
+                for (let i = 0; i < moves.length; i++) {
+                    if (depth == 0) {
+                        const value = moves[i].get_result().get_value();
+                        data.total_value += value;
+                        data.num_tests++;
+                    } else {
+                        explore_move(moves[i], data, depth - 1);
+                    }
+                }
+            }
+            let best = random_move(moves);
+            if (!best) return undefined;
+            let max = best.get_result().get_value() * value_mult;
+            for (let i = 0; i < moves.length; i++) {
+                const data = {
+                    move: moves[i],
+                    num_tests: 0,
+                    total_value: 0
+                };
+                explore_move(moves[i], data, 2);
+                data.total_value *= value_mult;
+                const avg = data.total_value / data.num_tests;
+                if (avg > max) {
+                    max = avg;
+                    best = moves[i];
+                }
+            }
+        }
+        case 3: {
+            const move_data = new Array<{ move: Move, value: number }>();
+            if (depth === undefined) depth = 1;
+            let best = undefined;
+            let max = -Infinity;
+            for (let i = 0; i < moves.length; i++) {
+                let result = moves[i].get_result();
+                if (depth > 0) {
+                    const opposing_move = get_ai_move(result, difficulty, depth - 1);
+                    if (opposing_move) {
+                        result = opposing_move.get_result();
+                    }
+                }
+                const value = result.get_value() * value_mult;
+                move_data.push({ move: moves[i], value: value });
+                if (value > max) {
+                    max = value;
+                    best = moves[i];
+                }
+            }
+            if (depth == 1) {
+                console.log(move_data);
+                console.log("best", max, best);
+            }
+            if (!best) {
+                console.log("no best move, returning random...");
+                return get_ai_move(board, 1); // return random if there was no best move
+            }
+            return best;
+        }
+        case 2: {
+            let best = random_move(moves);
+            if (!best) return undefined;
+            let max = best.get_result().get_value() * value_mult;
+            for (let i = 0; i < moves.length; i++) {
+                const value = moves[i].get_result().get_value() * value_mult;
+                console.log(moves[i], value);
+                if (value > max) {
+                    max = value;
+                    best = moves[i];
+                }
+            }
+            return best;
+        }
+        case 1:
+        default:
+            return random_move(moves);
+    }
+}
+
+function random_move(moves: Move[]) {
+    if (moves.length == 0) return undefined;
+    return moves[Math.floor(Math.random() * moves.length)];
 }
