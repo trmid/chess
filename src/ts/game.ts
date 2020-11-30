@@ -264,6 +264,20 @@ function link_event_listeners() {
         window.location.assign("/?game=4");
     });
 
+    // Undo
+    $("#undo").on("click", () => {
+        window.history.back();
+    });
+
+    // Redo
+    $("#redo").on("click", () => {
+        window.history.forward();
+    });
+
+    window.onpopstate = () => {
+        window.location.reload();
+    }
+
 }
 
 function get_ai_move(board: Board, difficulty = 1, depth?: number): Move | undefined {
@@ -327,7 +341,7 @@ function get_ai_move(board: Board, difficulty = 1, depth?: number): Move | undef
                 }
                 const value = result.get_value() * value_mult;
                 move_data.push({ move: moves[i], value: value });
-                if (value > max) {
+                if (value > max || (value == max && Math.random() <= (2.0 / moves.length))) {
                     max = value;
                     best = moves[i];
                 }

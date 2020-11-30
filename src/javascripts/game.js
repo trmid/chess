@@ -998,6 +998,15 @@ function link_event_listeners() {
     $("#play-ai-hard").on("click", () => {
         window.location.assign("/?game=4");
     });
+    $("#undo").on("click", () => {
+        window.history.back();
+    });
+    $("#redo").on("click", () => {
+        window.history.forward();
+    });
+    window.onpopstate = () => {
+        window.location.reload();
+    };
 }
 function get_ai_move(board, difficulty = 1, depth) {
     const side = board.turn;
@@ -1057,7 +1066,7 @@ function get_ai_move(board, difficulty = 1, depth) {
                 }
                 const value = result.get_value() * value_mult;
                 move_data.push({ move: moves[i], value: value });
-                if (value > max) {
+                if (value > max || (value == max && Math.random() <= (2.0 / moves.length))) {
                     max = value;
                     best = moves[i];
                 }
