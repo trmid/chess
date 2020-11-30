@@ -29,27 +29,30 @@ window.onload = function () {
     // Check game state
     check_game_state();
 
+    if (_GET.game == 4) {
 
-    async function ai_vs_ai() {
+        async function ai_vs_ai() {
 
-        // Check game state
-        const game_over = check_game_state();
-        if (game_over) return;
+            // Check game state
+            const game_over = check_game_state();
+            if (game_over) return;
 
-        const diff = board.turn == 'w' ? 3 : 4;
+            const diff = board.turn == 'w' ? 3 : 4;
 
-        const move = await get_ai_move(board, diff);
-        move?.execute();
+            const move = await get_ai_move(board, diff);
+            move?.execute();
 
-        // Update URL
-        update_url();
+            // Update URL
+            update_url();
 
-        // Call again
+            // Call again
+            ai_vs_ai();
+
+        }
+
         ai_vs_ai();
 
     }
-
-    ai_vs_ai();
 
 }
 

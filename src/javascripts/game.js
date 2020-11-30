@@ -911,19 +911,21 @@ window.onload = function () {
         });
     }
     check_game_state();
-    function ai_vs_ai() {
-        return __awaiter(this, void 0, void 0, function* () {
-            const game_over = check_game_state();
-            if (game_over)
-                return;
-            const diff = board.turn == 'w' ? 3 : 4;
-            const move = yield get_ai_move(board, diff);
-            move === null || move === void 0 ? void 0 : move.execute();
-            update_url();
-            ai_vs_ai();
-        });
+    if (_GET.game == 4) {
+        function ai_vs_ai() {
+            return __awaiter(this, void 0, void 0, function* () {
+                const game_over = check_game_state();
+                if (game_over)
+                    return;
+                const diff = board.turn == 'w' ? 3 : 4;
+                const move = yield get_ai_move(board, diff);
+                move === null || move === void 0 ? void 0 : move.execute();
+                update_url();
+                ai_vs_ai();
+            });
+        }
+        ai_vs_ai();
     }
-    ai_vs_ai();
 };
 function parse_get_vars() {
     const url = new URL(location.href);
