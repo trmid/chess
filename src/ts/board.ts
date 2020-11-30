@@ -21,6 +21,7 @@ interface Board {
     no_moves?: boolean
     checkmate?: boolean
     stalemate?: boolean
+    fen_cache?: { fen_str: string, turn: 'w' | 'b', turn_num: number }
     tile_onclick?: (tile: JQuery<HTMLElement> | HTMLElement, tile_code: string, x: number, y: number, piece?: Piece) => void
 }
 
@@ -174,6 +175,17 @@ class Board implements Board {
 
         }
 
+        // Save to fen cache
+        this.save_fen_cache(fen_str);
+
+    }
+
+    save_fen_cache(fen_str: string) {
+        this.fen_cache = {
+            fen_str: fen_str,
+            turn: this.turn,
+            turn_num: this.turn_num
+        };
     }
 
     append_to(elem: HTMLElement | JQuery<HTMLElement>) {
@@ -280,6 +292,13 @@ class Board implements Board {
     }
 
     get_fen_string() {
+
+        // Check cache
+        if (this.fen_cache && this.fen_cache.turn == this.turn && this.fen_cache.turn_num == this.turn_num) {
+            return this.fen_cache.fen_str;
+        }
+
+        // Generate fen string
         let fen = "";
 
         for (let rank = 7; rank >= 0; rank--) {
@@ -340,6 +359,9 @@ class Board implements Board {
         // Halfturn Number
         fen += ` ${this.halfturn_num}`;
 
+        // Save to fen cache
+        this.save_fen_cache(fen);
+
         return fen;
     }
 
@@ -364,25 +386,35 @@ class Board implements Board {
         return exe_moves;
     }
 
-    is_check(side?: 'w' | 'b') {
+    calculate_check(side?: 'w' | 'b') {
         const offence = side ?? (this.turn == 'w' ? 'b' : 'w');
         const defence = offence == 'w' ? 'b' : 'w';
         const moves = this.get_moves(false, offence);
         for (let i = 0; i < moves.length; i++) {
             const move = moves[i];
-            if (move.captured_piece == this.king[defence]) {
+            if (move.type !== 'blocked' && move.captured_piece == this.king[defence]) {
                 return true;
             }
         }
         return false;
     }
 
+    is_check(side?: 'w' | 'b') {
+        let actual_turn = this.turn;
+        if (side) {
+            this.turn = (side == 'w' ? 'b' : 'w'); // opposite just because we usually calculate check after a move is made
+        }
+        const check = BoardStateManager.is_check(this);
+        this.turn = actual_turn;
+        return check;
+    }
+
     is_checkmate() {
-        return this.is_check() && this.has_no_moves();
+        return BoardStateManager.is_checkmate(this);
     }
 
     is_stalemate() {
-        return !this.is_check() && this.has_no_moves();
+        return BoardStateManager.is_stalemate(this);
     }
 
     has_no_moves() {
@@ -423,6 +455,85 @@ class Board implements Board {
             return -val * Infinity;
         }
         return val;
+    }
+
+}
+
+interface BoardState {
+    fen_str: string
+    is_check: boolean
+    calculated: boolean
+    is_checkmate?: boolean
+    is_stalemate?: boolean
+}
+
+class BoardStateManager {
+
+    static STATES = new Map<string, BoardState>();
+
+    static is_check(board: Board) {
+        const fen_str = board.get_fen_string();
+        const state = this.STATES.get(fen_str);
+        if (state) {
+            return state.is_check;
+        } else {
+            const cache = this.save_cache(fen_str, board);
+            return cache.is_check;
+        }
+    }
+
+    static is_checkmate(board: Board) {
+        const fen_str = board.get_fen_string();
+        let state = this.STATES.get(fen_str);
+        if (!state) {
+            state = this.save_cache(fen_str, board);
+        }
+        if (state.calculated) {
+            return state.is_checkmate || false;
+        } else {
+            this.calculate_cache(state, board);
+            return state.is_checkmate || false;
+        }
+    }
+
+    static is_stalemate(board: Board) {
+        const fen_str = board.get_fen_string();
+        let state = this.STATES.get(fen_str);
+        if (!state) {
+            state = this.save_cache(fen_str, board);
+        }
+        if (state.calculated) {
+            return state.is_stalemate || false;
+        } else {
+            this.calculate_cache(state, board);
+            return state.is_stalemate || false;
+        }
+    }
+
+    static save_cache(fen_str: string, board: Board) {
+
+        // Calculate check and save cache (has no moves relies on check)
+        const check = board.calculate_check();
+        const state_cache = {
+            fen_str: fen_str,
+            is_check: check,
+            calculated: false
+        };
+        this.STATES.set(fen_str, state_cache);
+
+        // Return state
+        return state_cache;
+
+    }
+
+    static calculate_cache(state: BoardState, board: Board) {
+
+        // Calculate the board state
+        const check = state.is_check;
+        const has_no_moves = board.has_no_moves();
+        state.is_checkmate = check && has_no_moves;
+        state.is_stalemate = !check && has_no_moves;
+
     }
 
 }

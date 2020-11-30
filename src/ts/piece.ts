@@ -11,6 +11,7 @@ interface Move extends TilePos {
     type: string
     origin: TilePos
     captured_piece?: Piece
+    note?: string
     after?: () => any
 }
 
@@ -108,6 +109,9 @@ class Move implements Move {
             board.turn = 'b';
         }
 
+        // Update fen cache
+        board.get_fen_string();
+
     }
 
     is_stale() {
@@ -181,6 +185,7 @@ abstract class Piece implements Piece {
             const move = moves[i];
             if (move.type !== 'blocked' && move.get_result().is_check(move.piece.color == 'w' ? 'b' : 'w')) {
                 move.type = 'blocked';
+                move.note = `${move.piece.color == 'w' ? 'b' : 'w'} has check after this move. `;
             }
         };
         return moves;
@@ -468,7 +473,8 @@ class Queen extends Piece implements Piece {
     }
 
     get_moves() {
-        return this.get_diagonal_moves().concat(this.get_straight_moves());
+        const moves = this.get_diagonal_moves().concat(this.get_straight_moves());
+        return moves;
     }
 
     make_elem() {
