@@ -287,27 +287,27 @@ function link_event_listeners() {
 
     // PvP
     $("#play-player").on("click", () => {
-        window.location.assign(`/?game=0&side=${side}`);
+        window.location.assign(`?game=0&side=${side}`);
     });
 
     // AI Beginner
     $("#play-ai-beginner").on("click", () => {
-        window.location.assign(`/?game=1&side=${side}`);
+        window.location.assign(`?game=1&side=${side}`);
     });
 
     // AI Easy
     $("#play-ai-easy").on("click", () => {
-        window.location.assign(`/?game=2&side=${side}`);
+        window.location.assign(`?game=2&side=${side}`);
     });
 
     // AI Normal
     $("#play-ai-normal").on("click", () => {
-        window.location.assign(`/?game=3&side=${side}`);
+        window.location.assign(`?game=3&side=${side}`);
     });
 
     // AI Hard
     $("#play-ai-hard").on("click", () => {
-        window.location.assign(`/?game=4&side=${side}`);
+        window.location.assign(`?game=4&side=${side}`);
     });
 
     // Undo
