@@ -343,7 +343,7 @@ class Pawn extends Piece {
     }
     make_elem() {
         return $(document.createElement("img"))
-            .attr("src", `${location.origin}/img/${this.board.piece_set_name}/${this.color}p.png`)
+            .attr("src", `https://midpoint68.github.io/chess/img/${this.board.piece_set_name}/${this.color}p.png`)
             .addClass("piece pawn");
     }
 }
@@ -356,7 +356,7 @@ class Rook extends Piece {
     }
     make_elem() {
         return $(document.createElement("img"))
-            .attr("src", `${location.origin}/img/${this.board.piece_set_name}/${this.color}r.png`)
+            .attr("src", `https://midpoint68.github.io/chess/img/${this.board.piece_set_name}/${this.color}r.png`)
             .addClass("piece rook");
     }
 }
@@ -396,7 +396,7 @@ class Knight extends Piece {
     }
     make_elem() {
         return $(document.createElement("img"))
-            .attr("src", `${location.origin}/img/${this.board.piece_set_name}/${this.color}n.png`)
+            .attr("src", `https://midpoint68.github.io/chess/img/${this.board.piece_set_name}/${this.color}n.png`)
             .addClass("piece knight");
     }
 }
@@ -409,7 +409,7 @@ class Bishop extends Piece {
     }
     make_elem() {
         return $(document.createElement("img"))
-            .attr("src", `${location.origin}/img/${this.board.piece_set_name}/${this.color}b.png`)
+            .attr("src", `https://midpoint68.github.io/chess/img/${this.board.piece_set_name}/${this.color}b.png`)
             .addClass("piece bishop");
     }
 }
@@ -423,7 +423,7 @@ class Queen extends Piece {
     }
     make_elem() {
         return $(document.createElement("img"))
-            .attr("src", `${location.origin}/img/${this.board.piece_set_name}/${this.color}q.png`)
+            .attr("src", `https://midpoint68.github.io/chess/img/${this.board.piece_set_name}/${this.color}q.png`)
             .addClass("piece queen");
     }
 }
@@ -529,7 +529,7 @@ class King extends Piece {
     }
     make_elem() {
         return $(document.createElement("img"))
-            .attr("src", `${location.origin}/img/${this.board.piece_set_name}/${this.color}k.png`)
+            .attr("src", `https://midpoint68.github.io/chess/img/${this.board.piece_set_name}/${this.color}k.png`)
             .addClass("piece king");
     }
 }
