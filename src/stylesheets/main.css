@@ -92,7 +92,13 @@ footer{
     display: none;
 }
 
-@media only screen and (max-aspect-ratio: 1/1){
+#side-btn{
+    background-color: white;
+    color: black;
+    border: 2px solid gray;
+}
+
+@media only screen and (max-aspect-ratio: 4/3){
 
     body{
         flex-direction: column;

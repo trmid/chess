@@ -12,7 +12,7 @@ interface Move extends TilePos {
     origin: TilePos
     captured_piece?: Piece
     note?: string
-    after?: () => any
+    after?: (done: () => void) => void
 }
 
 interface Piece {
@@ -20,6 +20,7 @@ interface Piece {
     pos: TilePos
     board: Board
     elem?: HTMLImageElement | JQuery<HTMLImageElement>
+    taken?: boolean
     move(pos: TilePos): void
     get_moves(): Move[]
     make_elem(): HTMLImageElement | JQuery<HTMLImageElement>
@@ -41,7 +42,7 @@ class Move implements Move {
         }
     }
 
-    execute() {
+    execute(done?: () => void) {
 
         // Get the board
         const board = this.piece.board;
@@ -93,12 +94,18 @@ class Move implements Move {
 
         }
 
-        // Move
-        this.piece.move(this);
 
-        // Execute after function
+
+        // Execute move and then after function
         if (this.after) {
-            this.after();
+            const after = this.after;
+            // Move
+            this.piece.move(this, () => {
+                after(done || (() => { }));
+            });
+        } else {
+            // Just Move
+            this.piece.move(this, done);
         }
 
         // Switch turn
@@ -191,17 +198,44 @@ abstract class Piece implements Piece {
         return moves;
     }
 
-    move(pos: TilePos) {
+    move(pos: TilePos, done?: () => void) {
+        const animate_piece = async (elem: HTMLElement | JQuery<HTMLElement>, start_left: number, start_top: number, end_left: number, end_top: number, t: number, after: () => void) => {
+            if (t >= 1) {
+                after();
+                return;
+            }
+            const duration = 200;
+            const steps = duration / 10;
+            const progress = 0.5 * (-Math.cos(Math.PI * t) + 1);
+            $(elem).css("transform", `translate(${(end_left - start_left) * progress}px, ${(end_top - start_top) * progress}px)`);
+            setTimeout(() => {
+                animate_piece(elem, start_left, start_top, end_left, end_top, t + (1.0 / steps), after);
+            }, duration / steps);
+        }
         this.board.tiles[this.pos.x][this.pos.y] = undefined;
         this.board.tiles[pos.x][pos.y] = this;
         if (this.elem) {
-            this.elem.remove();
-            this.board.place_piece_at(this, pos);
+            const start = $(`td[x=${this.pos.x}][y=${this.pos.y}]`).position();
+            const end = $(`td[x=${pos.x}][y=${pos.y}]`).position();
+            const elem = this.elem;
+            $(elem).css("transform", `translate(0, 0)`).css('z-index', '99');
+            animate_piece(elem, start.left, start.top, end.left, end.top, 0, () => {
+                $(elem)
+                    .remove()
+                    .attr('style', '');
+                if (!this.taken) {
+                    this.board.place_piece_at(this, pos);
+                }
+                if (done) {
+                    done();
+                }
+            });
         }
         this.pos = pos;
     }
 
     take() {
+        this.taken = true;
         this.board.tiles[this.pos.x][this.pos.y] = undefined;
         switch (this.color) {
             case 'w':
@@ -304,8 +338,9 @@ class Pawn extends Piece implements Piece {
                 moves.push(move);
                 if (!this.board.has_piece_at(move) && !this.board.has_piece_at(en_passant)) {
                     move.set_type('pawn-rush');
-                    move.after = () => {
+                    move.after = (done: () => void) => {
                         this.board.en_passant = en_passant;
+                        done();
                     };
                 }
             }
@@ -335,8 +370,9 @@ class Pawn extends Piece implements Piece {
                 options.forEach(type => {
                     const promotion = new Move(this, promotion_tile.x, promotion_tile.y, `promote_${type}`);
                     moves.push(promotion);
-                    promotion.after = () => {
+                    promotion.after = (done: () => void) => {
                         this.promote_to(type);
+                        done();
                     };
                 });
             }
@@ -488,7 +524,7 @@ class Queen extends Piece implements Piece {
 class King extends Piece implements Piece {
 
     get_worth() {
-        return Infinity;
+        return 2; // 2 for getting the worth of an attempted capture
     }
 
     get_castle_moves() {
@@ -502,10 +538,10 @@ class King extends Piece implements Piece {
                 if (!this.board.has_piece_at({ x: 5, y: 0 }) && !this.board.has_piece_at({ x: 6, y: 0 })) {
                     if (!this.board.is_check()) {
                         castle.set_type('castle');
-                        castle.after = () => {
+                        castle.after = (done?: () => void) => {
                             const rook = this.board.piece_at({ x: 7, y: 0 });
                             if (!rook) throw new Error("Rook expected at H1 for castle.");
-                            rook.move({ x: 5, y: 0 });
+                            rook.move({ x: 5, y: 0 }, done);
                         };
                     }
                 }
@@ -516,10 +552,10 @@ class King extends Piece implements Piece {
                 if (!this.board.has_piece_at({ x: 1, y: 0 }) && !this.board.has_piece_at({ x: 2, y: 0 }) && !this.board.has_piece_at({ x: 3, y: 0 })) {
                     if (!this.board.is_check()) {
                         castle.set_type('castle');
-                        castle.after = () => {
+                        castle.after = (done?: () => void) => {
                             const rook = this.board.piece_at({ x: 0, y: 0 });
                             if (!rook) throw new Error("Rook expected at A1 for castle.");
-                            rook.move({ x: 3, y: 0 });
+                            rook.move({ x: 3, y: 0 }, done);
                         };
                     }
                 }
@@ -531,10 +567,10 @@ class King extends Piece implements Piece {
                 if (!this.board.has_piece_at({ x: 5, y: 7 }) && !this.board.has_piece_at({ x: 6, y: 7 })) {
                     if (!this.board.is_check()) {
                         castle.set_type('castle');
-                        castle.after = () => {
+                        castle.after = (done?: () => void) => {
                             const rook = this.board.piece_at({ x: 7, y: 7 });
                             if (!rook) throw new Error("Rook expected at H8 for castle.");
-                            rook.move({ x: 5, y: 7 });
+                            rook.move({ x: 5, y: 7 }, done);
                         };
                     }
                 }
@@ -545,10 +581,10 @@ class King extends Piece implements Piece {
                 if (!this.board.has_piece_at({ x: 1, y: 7 }) && !this.board.has_piece_at({ x: 2, y: 7 }) && !this.board.has_piece_at({ x: 3, y: 7 })) {
                     if (!this.board.is_check()) {
                         castle.set_type('castle');
-                        castle.after = () => {
+                        castle.after = (done?: () => void) => {
                             const rook = this.board.piece_at({ x: 0, y: 7 });
                             if (!rook) throw new Error("Rook expected at A8 for castle.");
-                            rook.move({ x: 3, y: 7 });
+                            rook.move({ x: 3, y: 7 }, done);
                         };
                     }
                 }

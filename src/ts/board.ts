@@ -215,7 +215,11 @@ class Board implements Board {
                         const piece = this.has_piece_at({ x: col, y: row - 1 }, this.turn);
                         if (this.tile_onclick) tile_onclick(e.delegateTarget, code, x, y, piece);
                     });
-                tr.append(tile);
+                if (this.side == 'w') {
+                    tr.append(tile);
+                } else {
+                    tr.prepend(tile);
+                }
                 // Row Labels
                 if (col == 0) {
                     tile.append(
@@ -434,12 +438,12 @@ class Board implements Board {
     /**
      * Positive value is advantage for white, negative is advantage for black
      */
-    get_value() {
-        const no_moves = this.has_no_moves();
-        const check = this.is_check();
-        const checkmate = check && no_moves;
-        const stalemate = !check && no_moves;
+    get_value(advanced?: boolean) {
+        const checkmate = BoardStateManager.is_checkmate(this);
+        const stalemate = BoardStateManager.is_stalemate(this);
         if (checkmate) return this.turn == 'b' ? Infinity : -Infinity;
+
+        // Calculate piece values remaining
         let val = 0;
         this.pieces.w.forEach(piece => {
             if (!(piece instanceof King)) {
@@ -451,9 +455,67 @@ class Board implements Board {
                 val -= piece.get_worth();
             }
         });
+
+        if (advanced) {
+            // + points for each castling position in the early game
+            const castle_points = 0.25;
+            const early_game = this.pieces.b.length + this.pieces.w.length > 20;
+            if (early_game) {
+                val += (this.castles.K ? castle_points : 0);
+                val += (this.castles.Q ? castle_points : 0);
+                val -= (this.castles.k ? castle_points : 0);
+                val -= (this.castles.q ? castle_points : 0);
+            }
+
+            // Points for various options
+            const capture_multiplier = 0.05;
+            const castle_move_points = 0.1;
+            const promotion_points = 0.25;
+            const move_points = 0.01;
+            var king_moves = { w: 0, b: 0 };
+            const moves = this.get_moves(false, 'w').concat(this.get_moves(false, 'b'));
+            for (let i = 0; i < moves.length; i++) {
+                const move = moves[i];
+                if (move.type !== 'blocked') {
+                    // Points for having a move
+                    val += move_points * (move.piece.color == 'w' ? 1 : -1);
+
+                    // Keep track of how many king moves
+                    if (move.piece instanceof King) {
+                        king_moves[move.piece.color]++;
+                    }
+
+                    if (move.captured_piece) {
+                        // points for each possible capture position
+                        val += move.captured_piece.get_worth() * capture_multiplier * (move.captured_piece.color == 'w' ? -1 : 1);
+                    }
+                    switch (move.type) {
+                        case 'promotion_q':
+                        case 'promotion_r':
+                        case 'promotion_b':
+                        case 'promotion_n':
+                            val += promotion_points * (move.piece.color == 'w' ? 1 : -1);
+                            break;
+                        case 'castle':
+                            if (early_game) {
+                                val += castle_move_points * (move.piece.color == 'w' ? 1 : -1);
+                            }
+                            break;
+                    }
+                }
+            }
+
+            // Points for the King having at least 3 moves of escape
+            const king_escape_points = 0.5;
+            val += (king_moves.w >= 3 ? king_escape_points : 0) - (king_moves.b >= 3 ? king_escape_points : 0);
+
+        }
+
+        // Return absolute advantage to losing side if stalemate
         if (stalemate) {
             return -val * Infinity;
         }
+
         return val;
     }
 
@@ -512,6 +574,12 @@ class BoardStateManager {
 
     static save_cache(fen_str: string, board: Board) {
 
+        // Reset cache if too big
+        if (this.STATES.size > 100000) {
+            console.warn("Board Cache too big... Reducing...");
+            this.STATES = new Map();
+        }
+
         // Calculate check and save cache (has no moves relies on check)
         const check = board.calculate_check();
         const state_cache = {
@@ -532,7 +600,7 @@ class BoardStateManager {
         const check = state.is_check;
         const has_no_moves = board.has_no_moves();
         state.is_checkmate = check && has_no_moves;
-        state.is_stalemate = !check && has_no_moves;
+        state.is_stalemate = (!check && has_no_moves) || board.halfturn_num >= 50;
 
     }
 
