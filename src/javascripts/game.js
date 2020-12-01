@@ -343,7 +343,7 @@ class Pawn extends Piece {
     }
     make_elem() {
         return $(document.createElement("img"))
-            .attr("src", `img/${this.board.piece_set_name}/${this.color}p.png`)
+            .attr("src", `${location.origin}/img/${this.board.piece_set_name}/${this.color}p.png`)
             .addClass("piece pawn");
     }
 }
@@ -356,7 +356,7 @@ class Rook extends Piece {
     }
     make_elem() {
         return $(document.createElement("img"))
-            .attr("src", `img/${this.board.piece_set_name}/${this.color}r.png`)
+            .attr("src", `${location.origin}/img/${this.board.piece_set_name}/${this.color}r.png`)
             .addClass("piece rook");
     }
 }
@@ -396,7 +396,7 @@ class Knight extends Piece {
     }
     make_elem() {
         return $(document.createElement("img"))
-            .attr("src", `img/${this.board.piece_set_name}/${this.color}n.png`)
+            .attr("src", `${location.origin}/img/${this.board.piece_set_name}/${this.color}n.png`)
             .addClass("piece knight");
     }
 }
@@ -409,7 +409,7 @@ class Bishop extends Piece {
     }
     make_elem() {
         return $(document.createElement("img"))
-            .attr("src", `img/${this.board.piece_set_name}/${this.color}b.png`)
+            .attr("src", `${location.origin}/img/${this.board.piece_set_name}/${this.color}b.png`)
             .addClass("piece bishop");
     }
 }
@@ -423,7 +423,7 @@ class Queen extends Piece {
     }
     make_elem() {
         return $(document.createElement("img"))
-            .attr("src", `img/${this.board.piece_set_name}/${this.color}q.png`)
+            .attr("src", `${location.origin}/img/${this.board.piece_set_name}/${this.color}q.png`)
             .addClass("piece queen");
     }
 }
@@ -529,7 +529,7 @@ class King extends Piece {
     }
     make_elem() {
         return $(document.createElement("img"))
-            .attr("src", `img/${this.board.piece_set_name}/${this.color}k.png`)
+            .attr("src", `${location.origin}/img/${this.board.piece_set_name}/${this.color}k.png`)
             .addClass("piece king");
     }
 }
@@ -1194,19 +1194,19 @@ function link_event_listeners() {
         $("nav").toggle("fast");
     });
     $("#play-player").on("click", () => {
-        window.location.assign(`?game=0&side=${side}`);
+        window.location.assign(`${location.pathname}?game=0&side=${side}`);
     });
     $("#play-ai-beginner").on("click", () => {
-        window.location.assign(`?game=1&side=${side}`);
+        window.location.assign(`${location.pathname}?game=1&side=${side}`);
     });
     $("#play-ai-easy").on("click", () => {
-        window.location.assign(`?game=2&side=${side}`);
+        window.location.assign(`${location.pathname}?game=2&side=${side}`);
     });
     $("#play-ai-normal").on("click", () => {
-        window.location.assign(`?game=3&side=${side}`);
+        window.location.assign(`${location.pathname}?game=3&side=${side}`);
     });
     $("#play-ai-hard").on("click", () => {
-        window.location.assign(`?game=4&side=${side}`);
+        window.location.assign(`${location.pathname}?game=4&side=${side}`);
     });
     $("#undo").on("click", () => {
         window.history.back();
