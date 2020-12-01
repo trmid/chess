@@ -117,7 +117,7 @@ class Move implements Move {
         }
 
         // Update fen cache
-        board.get_fen_string();
+        board.refresh();
 
     }
 
@@ -328,6 +328,28 @@ class Pawn extends Piece implements Piece {
         // Set pawn dir
         const dir = this.color == 'w' ? 1 : -1;
 
+        const check_promotion = (move: Move) => {
+            var far_y = 7;
+            if (this.color == 'b') far_y = 0;
+            if (move.y == far_y) {
+                const promote_move = (move: Move, type: 'r' | 'b' | 'n' | 'q') => {
+                    move.set_type(`promote_${type}`);
+                    move.after = (done: () => void) => {
+                        this.promote_to(type);
+                        done();
+                    };
+                }
+                promote_move(move, 'q'); // queen
+                const other_options: Array<'r' | 'b' | 'n'> = ['r', 'b', 'n'];
+                other_options.forEach(type => {
+                    const promotion = new Move(this, move.x, move.y); //others
+                    if (move.captured_piece) promotion.capture(move.captured_piece);
+                    moves.push(promotion);
+                    promote_move(promotion, type);
+                });
+            }
+        }
+
         // Check pawn rush moves
         var start_y = 1;
         if (this.color == 'b') start_y = 6;
@@ -356,34 +378,18 @@ class Pawn extends Piece implements Piece {
                 if (captured_piece) {
                     capture.capture(captured_piece);
                     moves.push(capture);
+                    check_promotion(capture);
                 }
             }
         }
 
-        // Check Promotion
-        var far_y = 7;
-        if (this.color == 'b') far_y = 0;
-        if (this.pos.y + dir == far_y) {
-            const promotion_tile = { x: this.pos.x, y: this.pos.y + dir };
-            if (Board.in_bounds(promotion_tile) && !this.board.has_piece_at(promotion_tile)) {
-                const options: Array<'r' | 'b' | 'n' | 'q'> = ['r', 'b', 'n', 'q'];
-                options.forEach(type => {
-                    const promotion = new Move(this, promotion_tile.x, promotion_tile.y, `promote_${type}`);
-                    moves.push(promotion);
-                    promotion.after = (done: () => void) => {
-                        this.promote_to(type);
-                        done();
-                    };
-                });
-            }
-        } else {
-            // Check normal moves
-            const forward = new Move(this, this.pos.x, this.pos.y + dir);
-            if (Board.in_bounds(forward)) {
-                moves.push(forward);
-                if (!this.board.has_piece_at(forward)) {
-                    forward.set_type('available');
-                }
+        // Check normal moves
+        const forward = new Move(this, this.pos.x, this.pos.y + dir);
+        if (Board.in_bounds(forward)) {
+            moves.push(forward);
+            if (!this.board.has_piece_at(forward)) {
+                forward.set_type('available');
+                check_promotion(forward);
             }
         }
 
@@ -407,12 +413,14 @@ class Pawn extends Piece implements Piece {
                 new_piece = new Queen(this.pos.x, this.pos.y, this.color, this.board);
                 break;
         }
+        this.board.refresh();
+        console.log(new_piece);
         if (!new_piece) throw new Error(`Could not promote to type ${type}.`);
     }
 
     make_elem() {
         return $(document.createElement("img"))
-            .attr("src", `chess/img/${this.board.piece_set_name}/${this.color}p.png`)
+            .attr("src", `https://midpoint68.github.io/chess/img/${this.board.piece_set_name}/${this.color}p.png`)
             .addClass("piece pawn");
     }
 
@@ -430,7 +438,7 @@ class Rook extends Piece implements Piece {
 
     make_elem() {
         return $(document.createElement("img"))
-            .attr("src", `chess/img/${this.board.piece_set_name}/${this.color}r.png`)
+            .attr("src", `https://midpoint68.github.io/chess/img/${this.board.piece_set_name}/${this.color}r.png`)
             .addClass("piece rook");
     }
 
@@ -478,7 +486,7 @@ class Knight extends Piece implements Piece {
 
     make_elem() {
         return $(document.createElement("img"))
-            .attr("src", `chess/img/${this.board.piece_set_name}/${this.color}n.png`)
+            .attr("src", `https://midpoint68.github.io/chess/img/${this.board.piece_set_name}/${this.color}n.png`)
             .addClass("piece knight");
     }
 
@@ -496,7 +504,7 @@ class Bishop extends Piece implements Piece {
 
     make_elem() {
         return $(document.createElement("img"))
-            .attr("src", `chess/img/${this.board.piece_set_name}/${this.color}b.png`)
+            .attr("src", `https://midpoint68.github.io/chess/img/${this.board.piece_set_name}/${this.color}b.png`)
             .addClass("piece bishop");
     }
 
@@ -515,7 +523,7 @@ class Queen extends Piece implements Piece {
 
     make_elem() {
         return $(document.createElement("img"))
-            .attr("src", `chess/img/${this.board.piece_set_name}/${this.color}q.png`)
+            .attr("src", `https://midpoint68.github.io/chess/img/${this.board.piece_set_name}/${this.color}q.png`)
             .addClass("piece queen");
     }
 
@@ -627,7 +635,7 @@ class King extends Piece implements Piece {
 
     make_elem() {
         return $(document.createElement("img"))
-            .attr("src", `chess/img/${this.board.piece_set_name}/${this.color}k.png`)
+            .attr("src", `https://midpoint68.github.io/chess/img/${this.board.piece_set_name}/${this.color}k.png`)
             .addClass("piece king");
     }
 

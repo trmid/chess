@@ -203,13 +203,13 @@ function tile_onclick(tile: JQuery<HTMLElement> | HTMLElement, code: string, x: 
 
                                 const move = await get_ai_move(board, game_mode);
                                 highlight_move(move);
-                                move?.execute();
+                                move?.execute(() => {
+                                    // Update URL
+                                    update_url();
 
-                                // Update URL
-                                update_url();
-
-                                // Check game state
-                                check_game_state();
+                                    // Check game state
+                                    check_game_state();
+                                });
 
                             }, 0);
 

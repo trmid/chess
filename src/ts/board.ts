@@ -266,7 +266,13 @@ class Board implements Board {
     remove_piece(piece: Piece) {
         const idx = this.pieces[piece.color].findIndex(p => p == piece);
         delete this.pieces[piece.color][idx];
+        this.tiles[piece.pos.x][piece.pos.y] = undefined;
         piece.elem?.remove();
+    }
+
+    refresh() {
+        this.fen_cache = undefined;
+        this.get_fen_string();
     }
 
     has_enpassant_at(pos: TilePos, color?: string) {

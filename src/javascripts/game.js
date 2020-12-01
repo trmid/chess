@@ -76,7 +76,7 @@ class Move {
         else {
             board.turn = 'b';
         }
-        board.get_fen_string();
+        board.refresh();
     }
     is_stale() {
         return !(this.piece instanceof Pawn || this.captured_piece !== undefined);
@@ -265,6 +265,29 @@ class Pawn extends Piece {
     get_moves() {
         const moves = new Array();
         const dir = this.color == 'w' ? 1 : -1;
+        const check_promotion = (move) => {
+            var far_y = 7;
+            if (this.color == 'b')
+                far_y = 0;
+            if (move.y == far_y) {
+                const promote_move = (move, type) => {
+                    move.set_type(`promote_${type}`);
+                    move.after = (done) => {
+                        this.promote_to(type);
+                        done();
+                    };
+                };
+                promote_move(move, 'q');
+                const other_options = ['r', 'b', 'n'];
+                other_options.forEach(type => {
+                    const promotion = new Move(this, move.x, move.y);
+                    if (move.captured_piece)
+                        promotion.capture(move.captured_piece);
+                    moves.push(promotion);
+                    promote_move(promotion, type);
+                });
+            }
+        };
         var start_y = 1;
         if (this.color == 'b')
             start_y = 6;
@@ -290,33 +313,16 @@ class Pawn extends Piece {
                 if (captured_piece) {
                     capture.capture(captured_piece);
                     moves.push(capture);
+                    check_promotion(capture);
                 }
             }
         }
-        var far_y = 7;
-        if (this.color == 'b')
-            far_y = 0;
-        if (this.pos.y + dir == far_y) {
-            const promotion_tile = { x: this.pos.x, y: this.pos.y + dir };
-            if (Board.in_bounds(promotion_tile) && !this.board.has_piece_at(promotion_tile)) {
-                const options = ['r', 'b', 'n', 'q'];
-                options.forEach(type => {
-                    const promotion = new Move(this, promotion_tile.x, promotion_tile.y, `promote_${type}`);
-                    moves.push(promotion);
-                    promotion.after = (done) => {
-                        this.promote_to(type);
-                        done();
-                    };
-                });
-            }
-        }
-        else {
-            const forward = new Move(this, this.pos.x, this.pos.y + dir);
-            if (Board.in_bounds(forward)) {
-                moves.push(forward);
-                if (!this.board.has_piece_at(forward)) {
-                    forward.set_type('available');
-                }
+        const forward = new Move(this, this.pos.x, this.pos.y + dir);
+        if (Board.in_bounds(forward)) {
+            moves.push(forward);
+            if (!this.board.has_piece_at(forward)) {
+                forward.set_type('available');
+                check_promotion(forward);
             }
         }
         return moves;
@@ -338,6 +344,8 @@ class Pawn extends Piece {
                 new_piece = new Queen(this.pos.x, this.pos.y, this.color, this.board);
                 break;
         }
+        this.board.refresh();
+        console.log(new_piece);
         if (!new_piece)
             throw new Error(`Could not promote to type ${type}.`);
     }
@@ -704,7 +712,12 @@ class Board {
         var _a;
         const idx = this.pieces[piece.color].findIndex(p => p == piece);
         delete this.pieces[piece.color][idx];
+        this.tiles[piece.pos.x][piece.pos.y] = undefined;
         (_a = piece.elem) === null || _a === void 0 ? void 0 : _a.remove();
+    }
+    refresh() {
+        this.fen_cache = undefined;
+        this.get_fen_string();
     }
     has_enpassant_at(pos, color) {
         if (this.en_passant && this.en_passant.x == pos.x && this.en_passant.y == pos.y) {
@@ -1132,9 +1145,10 @@ function tile_onclick(tile, code, x, y, piece) {
                             setTimeout(() => __awaiter(this, void 0, void 0, function* () {
                                 const move = yield get_ai_move(board, game_mode);
                                 highlight_move(move);
-                                move === null || move === void 0 ? void 0 : move.execute();
-                                update_url();
-                                check_game_state();
+                                move === null || move === void 0 ? void 0 : move.execute(() => {
+                                    update_url();
+                                    check_game_state();
+                                });
                             }), 0);
                         }
                     });
