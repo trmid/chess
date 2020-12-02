@@ -8,6 +8,14 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+/*!
+ * Copyright (c) Trevor Richard
+ *
+ * Author: Trevor Richard
+ * License: MIT
+ *
+ * See LICENSE for more details.
+ */
 class Move {
     constructor(piece, x, y, type = 'blocked', captured_piece) {
         this.piece = piece;

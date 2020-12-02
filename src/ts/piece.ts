@@ -1,3 +1,11 @@
+/*!
+ * Copyright (c) Trevor Richard
+ * 
+ * Author: Trevor Richard
+ * License: MIT
+ * 
+ * See LICENSE for more details.
+ */
 
 /// <reference path="./board.ts" />
 
