@@ -627,7 +627,7 @@ class Board {
             case 'paper':
                 break;
             default:
-                piece_set = 'kiffset_light';
+                piece_set = 'paper';
         }
         this.piece_set_name = piece_set;
     }
