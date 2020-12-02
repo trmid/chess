@@ -315,7 +315,7 @@ class Piece {
             .attr('draggable', 'true')
             .attr('ondragstart', `event.dataTransfer.setData("text/plain",null);$(this).css("opacity", 0);`)
             .attr('ondragend', `this.style="";`)
-            .addClass(`piece ${img_class}`);
+            .addClass(`piece ${img_class}${this.board.piece_set_name.slice(0, 7) === 'kiffset' ? ' pixel-art' : ''}`);
     }
 }
 class Pawn extends Piece {
