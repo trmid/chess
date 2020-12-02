@@ -592,7 +592,7 @@ class King extends Piece {
     }
 }
 class Board {
-    constructor({ fen_str = Board.START_FEN, side = 'w', parent_elem, tile_onclick, piece_set_name = "kiffset_light" }) {
+    constructor({ fen_str = Board.START_FEN, side = 'w', parent_elem, tile_onclick, piece_set_name = "paper" }) {
         this.turn = 'w';
         this.side = side;
         this.set_piece_set(piece_set_name);
@@ -624,6 +624,7 @@ class Board {
             case 'kiffset':
             case 'kiffset_light':
             case 'default':
+            case 'paper':
                 break;
             default:
                 piece_set = 'kiffset_light';

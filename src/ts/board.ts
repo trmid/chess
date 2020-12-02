@@ -78,7 +78,7 @@ class Board implements Board {
         side = 'w',
         parent_elem,
         tile_onclick,
-        piece_set_name = "kiffset_light"
+        piece_set_name = "paper"
     }: {
         fen_str?: string
         side?: 'w' | 'b'
@@ -114,6 +114,7 @@ class Board implements Board {
             case 'kiffset':
             case 'kiffset_light':
             case 'default':
+            case 'paper':
                 break;
             default:
                 piece_set = 'kiffset_light';
