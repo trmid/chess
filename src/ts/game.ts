@@ -265,10 +265,14 @@ function check_game_state() {
     const checkmate = board.is_checkmate();
     const stalemate = board.is_stalemate();
     const check = board.is_check();
-    if (check) {
-        check_sound.play();
-    } else {
-        move_sounds[Math.floor(Math.random() * move_sounds.length)].play();
+    try {
+        if (check) {
+            check_sound.play();
+        } else {
+            move_sounds[Math.floor(Math.random() * move_sounds.length)].play();
+        }
+    } catch (e) {
+        console.error(e);
     }
     setTimeout(() => {
         if (checkmate) {

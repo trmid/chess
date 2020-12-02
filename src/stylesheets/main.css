@@ -180,7 +180,7 @@ footer{
     }
 
     #chess-container{
-        align-items: flex-end;
+        align-items: flex-start;
     }
 
     .hide-on-mobile{
