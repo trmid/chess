@@ -40,6 +40,15 @@
                 <button id="undo">Undo</button>
                 <button id="redo">Redo</button>
                 <button id="save">Save</button>
+                <button id="toggle-settings">Settings</button>
+                <div id="settings" style="display: none;">
+                    <h5>Piece Set</h5>
+                    <select id="piece-set-name">
+                        <option value="kiffset_light" selected>Kiffset Light</option>
+                        <option value="kiffset">Kiffset</option>
+                        <option value="default">Traditional</option>
+                    </select>
+                </div>
             </nav>
         </div>
         <footer class="hide-on-mobile"> © 2020 Trevor Richard </footer>
@@ -47,6 +56,12 @@
 
     <div id="chess-container">
         <!-- container for the chess board -->
+    </div>
+
+    <div>
+        <audio src="https://midpoint68.github.io/chess/audio/move_1.ogg" id="move-sound-1"></audio>
+        <audio src="https://midpoint68.github.io/chess/audio/move_2.ogg" id="move-sound-2"></audio>
+        <audio src="https://midpoint68.github.io/chess/audio/check.ogg" id="check-sound"></audio>
     </div>
 
     <div id="check-alert"></div>

@@ -13,6 +13,7 @@ img{
     position: relative;
     border: 1vmin solid var(--black-color);
     border-radius: 2px;
+    box-shadow: 1px 1px 7px black;
 }
 
 .chess-board,

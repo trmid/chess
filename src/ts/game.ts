@@ -4,15 +4,24 @@ var board: Board;
 var game_mode: number;
 var game_over = false;
 var play_as: 'w' | 'b';
+var piece_set: string | undefined;
+
+var move_sounds = new Array<HTMLAudioElement>();
+var check_sound: HTMLAudioElement;
 
 window.onload = function () {
+
+    // Load audio elements
+    move_sounds.push(document.getElementById('move-sound-1') as HTMLAudioElement);
+    move_sounds.push(document.getElementById('move-sound-2') as HTMLAudioElement);
+    check_sound = document.getElementById('check-sound') as HTMLAudioElement;
 
     const _GET = parse_get_vars();
 
     // Game mode
     game_mode = _GET.game || 0;
     play_as = _GET.play_as == 'b' ? 'b' : 'w';
-    console.log(play_as);
+    piece_set = _GET.piece_set;
 
     // Check for game load
     if (!check_load_game(_GET)) {
@@ -21,7 +30,8 @@ window.onload = function () {
         board = new Board({
             parent_elem: $("#chess-container"),
             tile_onclick: tile_onclick,
-            side: play_as
+            side: play_as,
+            piece_set_name: piece_set
         });
 
     }
@@ -37,7 +47,7 @@ window.onload = function () {
         async function ai_vs_ai() {
 
             // Check game state
-            game_over = check_game_state();
+            check_game_state();
             if (game_over) return;
 
             const diff = board.turn == 'w' ? 4 : 5;
@@ -64,6 +74,9 @@ window.onload = function () {
             move?.execute(true, () => {
                 // Update URL
                 update_url();
+
+                // Check game state
+                check_game_state();
             });
         })();
 
@@ -75,7 +88,8 @@ interface GameVars {
     game?: number
     fen_str?: string
     play_as?: string
-    parent_elem?: JQuery<HTMLElement> | HTMLElement;
+    parent_elem?: JQuery<HTMLElement> | HTMLElement
+    piece_set?: string
 }
 
 function parse_get_vars() {
@@ -95,6 +109,8 @@ function parse_get_vars() {
     if (play_as)
         _GET.play_as = play_as;
 
+    _GET.piece_set = url.searchParams.get('piece_set') || undefined;
+
     return _GET;
 
 }
@@ -109,7 +125,8 @@ function check_load_game(game_vars: GameVars) {
         fen_str: game_vars.fen_str,
         side: game_vars.play_as == 'b' ? 'b' : 'w',
         parent_elem: game_vars.parent_elem,
-        tile_onclick: tile_onclick
+        tile_onclick: tile_onclick,
+        piece_set_name: piece_set
     });
     return true;
 }
@@ -197,7 +214,7 @@ function tile_onclick(tile: JQuery<HTMLElement> | HTMLElement, code: string, x: 
                         update_url();
 
                         // Check game state
-                        game_over = check_game_state();
+                        check_game_state();
 
                         // Call AI if applicable
                         if (!game_over && game_mode > 0) {
@@ -247,6 +264,11 @@ function check_game_state() {
     const checkmate = board.is_checkmate();
     const stalemate = board.is_stalemate();
     const check = board.is_check();
+    if (check) {
+        check_sound.play();
+    } else {
+        move_sounds[Math.floor(Math.random() * move_sounds.length)].play();
+    }
     setTimeout(() => {
         if (checkmate) {
             window.alert(`${board.turn == 'w' ? 'Black' : 'White'} won by checkmate in ${board.turn_num} turns.`);
@@ -260,7 +282,7 @@ function check_game_state() {
         }
     }, 0);
     update_state_buttons();
-    return checkmate || stalemate || false;
+    game_over = checkmate || stalemate || false;
 }
 
 function highlight_move(move?: Move) {
@@ -298,46 +320,50 @@ function link_event_listeners() {
     });
 
     // nav toggle
-    $("#nav-toggle").on("click", () => {
-        $("nav").toggle("fast");
+    $("#nav-toggle").on("click", (e) => {
+        e.stopPropagation();
+        $("nav").toggleClass("hide-on-mobile");
+    });
+    $("#chess-container").on("click", () => {
+        $("nav").addClass("hide-on-mobile");
     });
 
     // PvP
     $("#play-player").on("click", () => {
-        window.location.assign(`${location.pathname}?game=0&play_as=${play_as}`);
+        window.location.assign(`${location.pathname}?game=0&play_as=${play_as}&piece_set=${piece_set}`);
     });
 
     // AI Beginner
     $("#play-ai-beginner").on("click", () => {
-        window.location.assign(`${location.pathname}?game=1&play_as=${play_as}`);
+        window.location.assign(`${location.pathname}?game=1&play_as=${play_as}&piece_set=${piece_set}`);
     });
 
     // AI Easy
     $("#play-ai-easy").on("click", () => {
-        window.location.assign(`${location.pathname}?game=2&play_as=${play_as}`);
+        window.location.assign(`${location.pathname}?game=2&play_as=${play_as}&piece_set=${piece_set}`);
     });
 
     // AI Normal
     $("#play-ai-normal").on("click", () => {
-        window.location.assign(`${location.pathname}?game=3&play_as=${play_as}`);
+        window.location.assign(`${location.pathname}?game=3&play_as=${play_as}&piece_set=${piece_set}`);
     });
 
     // AI Hard
     $("#play-ai-hard").on("click", () => {
-        window.location.assign(`${location.pathname}?game=4&play_as=${play_as}`);
+        window.location.assign(`${location.pathname}?game=4&play_as=${play_as}&piece_set=${piece_set}`);
     });
 
     // Undo
     $("#undo").on("click", (e) => {
         board.previous_state();
-        game_over = check_game_state();
+        check_game_state();
         update_state_buttons();
     });
 
     // Redo
     $("#redo").on("click", (e) => {
         board.next_state();
-        game_over = check_game_state();
+        check_game_state();
         update_state_buttons();
     });
 
@@ -348,7 +374,7 @@ function link_event_listeners() {
     const update_play_as = (elem: HTMLElement | JQuery<HTMLElement>) => {
         $(elem)
             .attr('play-as', play_as)
-            .css('background-color', play_as == 'w' ? 'white' : 'black')
+            .css('background-color', play_as == 'w' ? '#eee' : 'black')
             .css('color', play_as == 'w' ? 'black' : 'white')
             .html(play_as == 'w' ? "Play as <strong>Black</strong>" : "Play as <strong>White</strong>");
     };
@@ -387,6 +413,21 @@ function link_event_listeners() {
         };
         const date = new Date();
         download(`Chess (${date.getFullYear()}-${date.getMonth()}-${date.getDate()}).html`, `<!DOCTYPE html><h2>Click <a href="${location.href.toString()}>here</a> if not redirected..."</h2><script>window.onload=()=>{location.assign("${location.href.toString()}");}</script>`);
+    });
+
+    // Piece Set Change
+    $("#piece-set-name").on("change", (e) => {
+        const name = $(e.delegateTarget).val();
+        if (name) {
+            piece_set = name.toString();
+            board.set_piece_set(piece_set);
+            board.refresh_elem(true);
+        }
+    });
+
+    // Settings
+    $("#toggle-settings").on("click", (e) => {
+        $("#settings").toggle("fast");
     });
 
 }
@@ -477,7 +518,7 @@ async function get_ai_move(board: Board, difficulty = 1, depth?: number): Promis
                 break;
             }
             case 4: {
-                const move_data = new Array<{ move: Move, value: number, result: Board }>();
+                // const move_data = new Array<{ move: Move, value: number, result: Board }>();
                 if (depth === undefined) depth = 1;
                 let best = undefined;
                 let max = -Infinity;
@@ -490,14 +531,14 @@ async function get_ai_move(board: Board, difficulty = 1, depth?: number): Promis
                         }
                     }
                     const value = result.get_value(true) * value_mult;
-                    move_data.push({ move: moves[i], value: value, result: result });
+                    // move_data.push({ move: moves[i], value: value, result: result });
                     if (value > max || (value == max && Math.random() <= (2.0 / moves.length))) {
                         max = value;
                         best = moves[i];
                     }
                 }
                 if (depth == 1) {
-                    console.log(move_data);
+                    // console.log(move_data);
                     console.log(`AI ${difficulty} best move [turn=${board.turn_num}] for ${board.turn}:`, max, best);
                 }
                 if (!best) {

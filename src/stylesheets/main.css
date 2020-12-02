@@ -20,7 +20,6 @@ html, body{
 }
 
 body{
-    overflow: hidden;
     display: flex;
     flex-direction: row;
     justify-content: flex-start;
@@ -48,6 +47,8 @@ header{
 
 nav{
     margin: 1em;
+    max-height: 80vh;
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
     flex-wrap: nowrap;
@@ -55,7 +56,8 @@ nav{
     align-items: stretch;
 }
 
-nav button{
+nav button, nav select, nav h5{
+    display: block;
     text-align: left;
     padding: 0.5em;
     margin: 0.5em;
@@ -63,7 +65,11 @@ nav button{
     background-color: var(--btn-color);
 }
 
-#play-options{
+nav h5{
+    border-left: 4px solid var(--nav-color);
+}
+
+#play-options, #settings{
     display: flex;
     flex-direction: column;
     flex-wrap: nowrap;
@@ -74,12 +80,13 @@ nav button{
 }
 
 footer{
-    margin: 1em;
+    padding: 1em;
     font-size: small;
 }
 
 #chess-container{
     flex: 3 0 auto;
+    padding: 0.5em;
     position: relative;
     display: flex;
     flex-direction: row;
@@ -170,6 +177,10 @@ footer{
         left: 0;
         width: 100%;
         border-top: 0.3em solid var(--nav-color);
+    }
+
+    #chess-container{
+        align-items: flex-end;
     }
 
     .hide-on-mobile{

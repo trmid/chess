@@ -77,18 +77,20 @@ class Board implements Board {
         fen_str = Board.START_FEN,
         side = 'w',
         parent_elem,
-        tile_onclick
+        tile_onclick,
+        piece_set_name = "kiffset_light"
     }: {
         fen_str?: string
         side?: 'w' | 'b'
         parent_elem?: HTMLElement | JQuery<HTMLElement>
         tile_onclick?: (tile: JQuery<HTMLElement> | HTMLElement, tile_code: string, x: number, y: number, dropped: boolean, piece?: Piece) => void
+        piece_set_name?: string
     }) {
 
         // Set vars
         this.turn = 'w';
         this.side = side;
-        this.piece_set_name = "kiffset_light";
+        this.set_piece_set(piece_set_name);
         this.king = { 'w': undefined, 'b': undefined };
         this.tile_onclick = tile_onclick;
         this.state = undefined;
@@ -105,6 +107,18 @@ class Board implements Board {
         this.load_fen(fen_str);
         this.push_state();
 
+    }
+
+    set_piece_set(piece_set: string) {
+        switch (piece_set) {
+            case 'kiffset':
+            case 'kiffset_light':
+            case 'default':
+                break;
+            default:
+                piece_set = 'kiffset_light';
+        }
+        this.piece_set_name = piece_set;
     }
 
     load_fen(fen_str: string) {
@@ -191,16 +205,20 @@ class Board implements Board {
         this.state_store = new Array<BoardState>();
     }
 
+    refresh_elem(refresh_image = false) {
+        if (this.elem) {
+            const parent = $(this.elem).parent();
+            $(this.elem).remove();
+            this.append_to(parent, refresh_image);
+        }
+    }
+
     previous_state() {
         if (this.state && this.state.prev) {
             this.state_store.push(this.state);
             this.state = this.state.prev;
             this.load_fen(this.state.fen_str);
-            if (this.elem) {
-                const parent = $(this.elem).parent();
-                $(this.elem).remove();
-                this.append_to(parent);
-            }
+            this.refresh_elem();
         }
     }
 
@@ -209,11 +227,7 @@ class Board implements Board {
         if (state) {
             this.state = state;
             this.load_fen(this.state.fen_str);
-            if (this.elem) {
-                const parent = $(this.elem).parent();
-                $(this.elem).remove();
-                this.append_to(parent);
-            }
+            this.refresh_elem();
         }
     }
 
@@ -225,7 +239,7 @@ class Board implements Board {
         };
     }
 
-    append_to(elem: HTMLElement | JQuery<HTMLElement>) {
+    append_to(elem: HTMLElement | JQuery<HTMLElement>, refresh_image = false) {
 
         const board = $(document.createElement("table")).addClass("chess-board");
         this.elem = board;
@@ -304,7 +318,7 @@ class Board implements Board {
 
         if (this.pieces) {
             this.pieces.w.concat(this.pieces.b).forEach(piece => {
-                this.place_piece_at(piece, piece.pos);
+                this.place_piece_at(piece, piece.pos, refresh_image);
             });
         }
 
@@ -369,7 +383,10 @@ class Board implements Board {
         }
     }
 
-    place_piece_at(piece: Piece, pos: TilePos) {
+    place_piece_at(piece: Piece, pos: TilePos, refresh_image = false) {
+        if (refresh_image) {
+            piece.elem = piece.make_elem();
+        }
         if (piece.elem) {
             $(`td[x=${pos.x}][y=${pos.y}]`).append(piece.elem);
         }

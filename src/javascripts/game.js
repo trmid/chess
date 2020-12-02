@@ -583,10 +583,10 @@ class King extends Piece {
     }
 }
 class Board {
-    constructor({ fen_str = Board.START_FEN, side = 'w', parent_elem, tile_onclick }) {
+    constructor({ fen_str = Board.START_FEN, side = 'w', parent_elem, tile_onclick, piece_set_name = "kiffset_light" }) {
         this.turn = 'w';
         this.side = side;
-        this.piece_set_name = "kiffset_light";
+        this.set_piece_set(piece_set_name);
         this.king = { 'w': undefined, 'b': undefined };
         this.tile_onclick = tile_onclick;
         this.state = undefined;
@@ -609,6 +609,17 @@ class Board {
             x: tile_code.charCodeAt(0) - ('a').charCodeAt(0),
             y: parseInt(tile_code.charAt(1)) - 1
         };
+    }
+    set_piece_set(piece_set) {
+        switch (piece_set) {
+            case 'kiffset':
+            case 'kiffset_light':
+            case 'default':
+                break;
+            default:
+                piece_set = 'kiffset_light';
+        }
+        this.piece_set_name = piece_set;
     }
     load_fen(fen_str) {
         const args = fen_str.split(' ');
@@ -680,16 +691,19 @@ class Board {
         this.state = new BoardState(this, this.state);
         this.state_store = new Array();
     }
+    refresh_elem(refresh_image = false) {
+        if (this.elem) {
+            const parent = $(this.elem).parent();
+            $(this.elem).remove();
+            this.append_to(parent, refresh_image);
+        }
+    }
     previous_state() {
         if (this.state && this.state.prev) {
             this.state_store.push(this.state);
             this.state = this.state.prev;
             this.load_fen(this.state.fen_str);
-            if (this.elem) {
-                const parent = $(this.elem).parent();
-                $(this.elem).remove();
-                this.append_to(parent);
-            }
+            this.refresh_elem();
         }
     }
     next_state() {
@@ -697,11 +711,7 @@ class Board {
         if (state) {
             this.state = state;
             this.load_fen(this.state.fen_str);
-            if (this.elem) {
-                const parent = $(this.elem).parent();
-                $(this.elem).remove();
-                this.append_to(parent);
-            }
+            this.refresh_elem();
         }
     }
     save_fen_cache(fen_str) {
@@ -711,7 +721,7 @@ class Board {
             turn_num: this.turn_num
         };
     }
-    append_to(elem) {
+    append_to(elem, refresh_image = false) {
         const board = $(document.createElement("table")).addClass("chess-board");
         this.elem = board;
         $(elem).append(board);
@@ -786,7 +796,7 @@ class Board {
         }
         if (this.pieces) {
             this.pieces.w.concat(this.pieces.b).forEach(piece => {
-                this.place_piece_at(piece, piece.pos);
+                this.place_piece_at(piece, piece.pos, refresh_image);
             });
         }
         return board;
@@ -850,7 +860,10 @@ class Board {
             return undefined;
         }
     }
-    place_piece_at(piece, pos) {
+    place_piece_at(piece, pos, refresh_image = false) {
+        if (refresh_image) {
+            piece.elem = piece.make_elem();
+        }
         if (piece.elem) {
             $(`td[x=${pos.x}][y=${pos.y}]`).append(piece.elem);
         }
@@ -1100,16 +1113,23 @@ var board;
 var game_mode;
 var game_over = false;
 var play_as;
+var piece_set;
+var move_sounds = new Array();
+var check_sound;
 window.onload = function () {
+    move_sounds.push(document.getElementById('move-sound-1'));
+    move_sounds.push(document.getElementById('move-sound-2'));
+    check_sound = document.getElementById('check-sound');
     const _GET = parse_get_vars();
     game_mode = _GET.game || 0;
     play_as = _GET.play_as == 'b' ? 'b' : 'w';
-    console.log(play_as);
+    piece_set = _GET.piece_set;
     if (!check_load_game(_GET)) {
         board = new Board({
             parent_elem: $("#chess-container"),
             tile_onclick: tile_onclick,
-            side: play_as
+            side: play_as,
+            piece_set_name: piece_set
         });
     }
     check_game_state();
@@ -1117,7 +1137,7 @@ window.onload = function () {
     if (_GET.game == 5) {
         function ai_vs_ai() {
             return __awaiter(this, void 0, void 0, function* () {
-                game_over = check_game_state();
+                check_game_state();
                 if (game_over)
                     return;
                 const diff = board.turn == 'w' ? 4 : 5;
@@ -1137,6 +1157,7 @@ window.onload = function () {
             highlight_move(move);
             move === null || move === void 0 ? void 0 : move.execute(true, () => {
                 update_url();
+                check_game_state();
             });
         }))();
     }
@@ -1155,6 +1176,7 @@ function parse_get_vars() {
     const play_as = url.searchParams.get('play_as');
     if (play_as)
         _GET.play_as = play_as;
+    _GET.piece_set = url.searchParams.get('piece_set') || undefined;
     return _GET;
 }
 function check_load_game(game_vars) {
@@ -1168,7 +1190,8 @@ function check_load_game(game_vars) {
         fen_str: game_vars.fen_str,
         side: game_vars.play_as == 'b' ? 'b' : 'w',
         parent_elem: game_vars.parent_elem,
-        tile_onclick: tile_onclick
+        tile_onclick: tile_onclick,
+        piece_set_name: piece_set
     });
     return true;
 }
@@ -1246,7 +1269,7 @@ function tile_onclick(tile, code, x, y, dropped, piece) {
                     highlight_move(move);
                     move.execute(!dropped, () => {
                         update_url();
-                        game_over = check_game_state();
+                        check_game_state();
                         if (!game_over && game_mode > 0) {
                             setTimeout(() => __awaiter(this, void 0, void 0, function* () {
                                 const move = yield get_ai_move(board, game_mode);
@@ -1277,6 +1300,12 @@ function check_game_state() {
     const checkmate = board.is_checkmate();
     const stalemate = board.is_stalemate();
     const check = board.is_check();
+    if (check) {
+        check_sound.play();
+    }
+    else {
+        move_sounds[Math.floor(Math.random() * move_sounds.length)].play();
+    }
     setTimeout(() => {
         var _a;
         if (checkmate) {
@@ -1293,7 +1322,7 @@ function check_game_state() {
         }
     }, 0);
     update_state_buttons();
-    return checkmate || stalemate || false;
+    game_over = checkmate || stalemate || false;
 }
 function highlight_move(move) {
     if (move) {
@@ -1324,39 +1353,43 @@ function link_event_listeners() {
     $("#new-game-btn").on("click", () => {
         $("#play-options").toggle("fast");
     });
-    $("#nav-toggle").on("click", () => {
-        $("nav").toggle("fast");
+    $("#nav-toggle").on("click", (e) => {
+        e.stopPropagation();
+        $("nav").toggleClass("hide-on-mobile");
+    });
+    $("#chess-container").on("click", () => {
+        $("nav").addClass("hide-on-mobile");
     });
     $("#play-player").on("click", () => {
-        window.location.assign(`${location.pathname}?game=0&play_as=${play_as}`);
+        window.location.assign(`${location.pathname}?game=0&play_as=${play_as}&piece_set=${piece_set}`);
     });
     $("#play-ai-beginner").on("click", () => {
-        window.location.assign(`${location.pathname}?game=1&play_as=${play_as}`);
+        window.location.assign(`${location.pathname}?game=1&play_as=${play_as}&piece_set=${piece_set}`);
     });
     $("#play-ai-easy").on("click", () => {
-        window.location.assign(`${location.pathname}?game=2&play_as=${play_as}`);
+        window.location.assign(`${location.pathname}?game=2&play_as=${play_as}&piece_set=${piece_set}`);
     });
     $("#play-ai-normal").on("click", () => {
-        window.location.assign(`${location.pathname}?game=3&play_as=${play_as}`);
+        window.location.assign(`${location.pathname}?game=3&play_as=${play_as}&piece_set=${piece_set}`);
     });
     $("#play-ai-hard").on("click", () => {
-        window.location.assign(`${location.pathname}?game=4&play_as=${play_as}`);
+        window.location.assign(`${location.pathname}?game=4&play_as=${play_as}&piece_set=${piece_set}`);
     });
     $("#undo").on("click", (e) => {
         board.previous_state();
-        game_over = check_game_state();
+        check_game_state();
         update_state_buttons();
     });
     $("#redo").on("click", (e) => {
         board.next_state();
-        game_over = check_game_state();
+        check_game_state();
         update_state_buttons();
     });
     update_state_buttons();
     const update_play_as = (elem) => {
         $(elem)
             .attr('play-as', play_as)
-            .css('background-color', play_as == 'w' ? 'white' : 'black')
+            .css('background-color', play_as == 'w' ? '#eee' : 'black')
             .css('color', play_as == 'w' ? 'black' : 'white')
             .html(play_as == 'w' ? "Play as <strong>Black</strong>" : "Play as <strong>White</strong>");
     };
@@ -1386,6 +1419,17 @@ function link_event_listeners() {
         };
         const date = new Date();
         download(`Chess (${date.getFullYear()}-${date.getMonth()}-${date.getDate()}).html`, `<!DOCTYPE html><h2>Click <a href="${location.href.toString()}>here</a> if not redirected..."</h2><script>window.onload=()=>{location.assign("${location.href.toString()}");}</script>`);
+    });
+    $("#piece-set-name").on("change", (e) => {
+        const name = $(e.delegateTarget).val();
+        if (name) {
+            piece_set = name.toString();
+            board.set_piece_set(piece_set);
+            board.refresh_elem(true);
+        }
+    });
+    $("#toggle-settings").on("click", (e) => {
+        $("#settings").toggle("fast");
     });
 }
 function get_ai_move(board, difficulty = 1, depth) {
@@ -1462,7 +1506,6 @@ function get_ai_move(board, difficulty = 1, depth) {
                     break;
                 }
                 case 4: {
-                    const move_data = new Array();
                     if (depth === undefined)
                         depth = 1;
                     let best = undefined;
@@ -1476,14 +1519,12 @@ function get_ai_move(board, difficulty = 1, depth) {
                             }
                         }
                         const value = result.get_value(true) * value_mult;
-                        move_data.push({ move: moves[i], value: value, result: result });
                         if (value > max || (value == max && Math.random() <= (2.0 / moves.length))) {
                             max = value;
                             best = moves[i];
                         }
                     }
                     if (depth == 1) {
-                        console.log(move_data);
                         console.log(`AI ${difficulty} best move [turn=${board.turn_num}] for ${board.turn}:`, max, best);
                     }
                     if (!best) {
