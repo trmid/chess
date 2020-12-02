@@ -374,6 +374,21 @@ function link_event_listeners() {
         $(e.delegateTarget).hide();
     });
 
+    // Save
+    $("#save").on("click", () => {
+        const download = (filename: string, text: string) => {
+            const link = $(document.createElement('a'))
+                .attr('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text))
+                .attr('download', filename)
+                .hide()
+                .appendTo(document.body);
+            link.get(0).click();
+            $(link).remove();
+        };
+        const date = new Date();
+        download(`Chess (${date.getFullYear()}-${date.getMonth()}-${date.getDate()}).html`, `<!DOCTYPE html><h2>Click <a href="${location.href.toString()}>here</a> if not redirected..."</h2><script>window.onload=()=>{location.assign("${location.href.toString()}");}</script>`);
+    });
+
 }
 
 async function get_ai_move(board: Board, difficulty = 1, depth?: number): Promise<Move | undefined> {

@@ -62,37 +62,33 @@ class Move implements Move {
             // Capture piece
             this.captured_piece.take();
 
-        } else {
-
-            // Was not a capture move
-
-            // Check if king was moved and disable castles
-            if (this.piece instanceof King) {
-                if (this.piece.color == 'w') {
-                    board.castles.K = false;
-                    board.castles.Q = false;
-                } else {
-                    board.castles.k = false;
-                    board.castles.q = false;
-                }
-            }
-
-            // Check if a rook was moved and disable castles
-            if (this.piece instanceof Rook) {
-                if (this.piece.color == 'w') {
-                    if (this.piece.pos.x == 0)
-                        board.castles.Q = false;
-                    else
-                        board.castles.K = false;
-                } else {
-                    if (this.piece.pos.x == 0)
-                        board.castles.q = false;
-                    else
-                        board.castles.k = false;
-                }
-            }
-
         }
+
+        // Check if king was moved and disable castles
+        if (this.piece instanceof King) {
+            if (this.piece.color == 'w') {
+                board.castles.K = false;
+                board.castles.Q = false;
+            } else {
+                board.castles.k = false;
+                board.castles.q = false;
+            }
+        }
+        // Check if a rook was moved and disable castles
+        else if (this.piece instanceof Rook) {
+            if (this.piece.color == 'w') {
+                if (this.piece.pos.x == 0)
+                    board.castles.Q = false;
+                else
+                    board.castles.K = false;
+            } else {
+                if (this.piece.pos.x == 0)
+                    board.castles.q = false;
+                else
+                    board.castles.k = false;
+            }
+        }
+
 
 
         const end_move = () => {
@@ -272,7 +268,7 @@ abstract class Piece implements Piece {
         switch (this.color) {
             case 'w':
             case 'b':
-                this.board.remove_piece(this);
+                this.board.take(this);
                 break;
             default:
                 console.error(`Cannot find piece with color: ${this.color}!`);

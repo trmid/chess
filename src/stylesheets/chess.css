@@ -77,29 +77,24 @@ img{
     bottom: 5%;
 }
 
-.row-label, .col-label-w, .col-label-b {
+.row-label, .col-label {
     position: absolute;
     font-size: 2vmin;
 }
 
-.white-tile .col-label-w, .white-tile .col-label-b,
+.white-tile .col-label,
 .white-tile .row-label {
     color: var(--black-color);
 }
 
-.black-tile .col-label-w, .black-tile .col-label-b,
+.black-tile .col-label,
 .black-tile .row-label {
     color: var(--white-color);
 }
 
-.col-label-w{
+.col-label{
     right: 0.5vmin;
     bottom: 0.25vmin;
-}
-
-.col-label-b{
-    right: 0.5vmin;
-    top: 0.25vmin;
 }
 
 .row-label{

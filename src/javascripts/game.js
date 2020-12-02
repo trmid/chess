@@ -34,30 +34,28 @@ class Move {
         if (this.captured_piece) {
             this.captured_piece.take();
         }
-        else {
-            if (this.piece instanceof King) {
-                if (this.piece.color == 'w') {
-                    board.castles.K = false;
-                    board.castles.Q = false;
-                }
-                else {
-                    board.castles.k = false;
-                    board.castles.q = false;
-                }
+        if (this.piece instanceof King) {
+            if (this.piece.color == 'w') {
+                board.castles.K = false;
+                board.castles.Q = false;
             }
-            if (this.piece instanceof Rook) {
-                if (this.piece.color == 'w') {
-                    if (this.piece.pos.x == 0)
-                        board.castles.Q = false;
-                    else
-                        board.castles.K = false;
-                }
-                else {
-                    if (this.piece.pos.x == 0)
-                        board.castles.q = false;
-                    else
-                        board.castles.k = false;
-                }
+            else {
+                board.castles.k = false;
+                board.castles.q = false;
+            }
+        }
+        else if (this.piece instanceof Rook) {
+            if (this.piece.color == 'w') {
+                if (this.piece.pos.x == 0)
+                    board.castles.Q = false;
+                else
+                    board.castles.K = false;
+            }
+            else {
+                if (this.piece.pos.x == 0)
+                    board.castles.q = false;
+                else
+                    board.castles.k = false;
             }
         }
         const end_move = () => {
@@ -217,7 +215,7 @@ class Piece {
         switch (this.color) {
             case 'w':
             case 'b':
-                this.board.remove_piece(this);
+                this.board.take(this);
                 break;
             default:
                 console.error(`Cannot find piece with color: ${this.color}!`);
@@ -774,14 +772,14 @@ class Board {
                 else {
                     tr.prepend(tile);
                 }
-                if (col == 0) {
+                if (col == (this.side == 'w' ? 0 : 7)) {
                     tile.append($(document.createElement("div"))
                         .addClass("row-label")
                         .html("" + row));
                 }
-                if (row == 1) {
+                if (row == (this.side == 'w' ? 1 : 8)) {
                     tile.append($(document.createElement("div"))
-                        .addClass(`col-label-${this.side}`)
+                        .addClass(`col-label`)
                         .html("" + char));
                 }
             }
@@ -814,6 +812,9 @@ class Board {
     }
     piece_at(pos) {
         return this.tiles[pos.x][pos.y];
+    }
+    take(piece) {
+        this.remove_piece(piece);
     }
     remove_piece(piece) {
         var _a;
@@ -1372,6 +1373,19 @@ function link_event_listeners() {
     });
     $("#check-alert").on("click", (e) => {
         $(e.delegateTarget).hide();
+    });
+    $("#save").on("click", () => {
+        const download = (filename, text) => {
+            const link = $(document.createElement('a'))
+                .attr('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text))
+                .attr('download', filename)
+                .hide()
+                .appendTo(document.body);
+            link.get(0).click();
+            $(link).remove();
+        };
+        const date = new Date();
+        download(`Chess (${date.getFullYear()}-${date.getMonth()}-${date.getDate()}).html`, `<!DOCTYPE html><h2>Click <a href="${location.href.toString()}>here</a> if not redirected..."</h2><script>window.onload=()=>{location.assign("${location.href.toString()}");}</script>`);
     });
 }
 function get_ai_move(board, difficulty = 1, depth) {

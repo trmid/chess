@@ -14,7 +14,7 @@ interface Board {
         q: boolean
     }
     king: { 'w'?: King, 'b'?: King }
-    elem?: HTMLTableElement | JQuery<HTMLTableElement>
+    elem?: HTMLElement | JQuery<HTMLElement>
     tiles: Array<Array<Piece | undefined>>
     pieces: { 'w': Array<Piece>, 'b': Array<Piece> }
     en_passant?: TilePos
@@ -229,7 +229,6 @@ class Board implements Board {
 
         const board = $(document.createElement("table")).addClass("chess-board");
         this.elem = board;
-
         $(elem).append(board);
         for (let row = 1; row <= 8; row++) {
             const tr = $(document.createElement("tr"));
@@ -285,7 +284,7 @@ class Board implements Board {
                     tr.prepend(tile);
                 }
                 // Row Labels
-                if (col == 0) {
+                if (col == (this.side == 'w' ? 0 : 7)) {
                     tile.append(
                         $(document.createElement("div"))
                             .addClass("row-label")
@@ -293,10 +292,10 @@ class Board implements Board {
                     );
                 }
                 // Col Labels
-                if (row == 1) {
+                if (row == (this.side == 'w' ? 1 : 8)) {
                     tile.append(
                         $(document.createElement("div"))
-                            .addClass(`col-label-${this.side}`)
+                            .addClass(`col-label`)
                             .html("" + char)
                     );
                 }
@@ -332,6 +331,10 @@ class Board implements Board {
 
     piece_at(pos: TilePos) {
         return this.tiles[pos.x][pos.y];
+    }
+
+    take(piece: Piece) {
+        this.remove_piece(piece);
     }
 
     remove_piece(piece: Piece) {
