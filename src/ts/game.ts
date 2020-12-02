@@ -257,6 +257,7 @@ function update_url() {
     const url = new URL(location.href);
     url.searchParams.set('fen', board.get_fen_string());
     url.searchParams.set('game', "" + game_mode);
+    if (piece_set) url.searchParams.set('piece_set', piece_set);
     window.history.pushState({}, '', url.toString());
 }
 
@@ -358,6 +359,7 @@ function link_event_listeners() {
         board.previous_state();
         check_game_state();
         update_state_buttons();
+        update_url();
     });
 
     // Redo
@@ -365,6 +367,7 @@ function link_event_listeners() {
         board.next_state();
         check_game_state();
         update_state_buttons();
+        update_url();
     });
 
     // Update state buttons
@@ -422,8 +425,11 @@ function link_event_listeners() {
             piece_set = name.toString();
             board.set_piece_set(piece_set);
             board.refresh_elem(true);
+            update_url();
         }
     });
+    $("#piece-set-name option").prop("selected", false);
+    $(`#piece-set-name option[value=${piece_set}]`).prop("selected", true);
 
     // Settings
     $("#toggle-settings").on("click", (e) => {

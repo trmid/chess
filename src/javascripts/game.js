@@ -313,7 +313,8 @@ class Piece {
         return $(document.createElement("img"))
             .attr("src", `https://midpoint68.github.io/chess/img/${this.board.piece_set_name}/${this.color}${type}.png`)
             .attr('draggable', 'true')
-            .attr('ondragstart', `event.dataTransfer.setData("text/plain",null);console.log('dragging')`)
+            .attr('ondragstart', `event.dataTransfer.setData("text/plain",null);$(this).css("opacity", 0);`)
+            .attr('ondragend', `this.style="";`)
             .addClass(`piece ${img_class}`);
     }
 }
@@ -1302,6 +1303,8 @@ function update_url() {
     const url = new URL(location.href);
     url.searchParams.set('fen', board.get_fen_string());
     url.searchParams.set('game', "" + game_mode);
+    if (piece_set)
+        url.searchParams.set('piece_set', piece_set);
     window.history.pushState({}, '', url.toString());
 }
 function check_game_state() {
@@ -1387,11 +1390,13 @@ function link_event_listeners() {
         board.previous_state();
         check_game_state();
         update_state_buttons();
+        update_url();
     });
     $("#redo").on("click", (e) => {
         board.next_state();
         check_game_state();
         update_state_buttons();
+        update_url();
     });
     update_state_buttons();
     const update_play_as = (elem) => {
@@ -1434,8 +1439,11 @@ function link_event_listeners() {
             piece_set = name.toString();
             board.set_piece_set(piece_set);
             board.refresh_elem(true);
+            update_url();
         }
     });
+    $("#piece-set-name option").prop("selected", false);
+    $(`#piece-set-name option[value=${piece_set}]`).prop("selected", true);
     $("#toggle-settings").on("click", (e) => {
         $("#settings").toggle("fast");
     });
