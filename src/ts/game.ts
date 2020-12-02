@@ -2,7 +2,8 @@
 
 var board: Board;
 var game_mode: number;
-var side: 'w' | 'b';
+var game_over = false;
+var play_as: 'w' | 'b';
 
 window.onload = function () {
 
@@ -10,10 +11,8 @@ window.onload = function () {
 
     // Game mode
     game_mode = _GET.game || 0;
-    side = _GET.side == 'b' ? 'b' : 'w';
-
-    // Event Listeners
-    link_event_listeners();
+    play_as = _GET.play_as == 'b' ? 'b' : 'w';
+    console.log(play_as);
 
     // Check for game load
     if (!check_load_game(_GET)) {
@@ -21,7 +20,8 @@ window.onload = function () {
         // Append a default game board
         board = new Board({
             parent_elem: $("#chess-container"),
-            tile_onclick: tile_onclick
+            tile_onclick: tile_onclick,
+            side: play_as
         });
 
     }
@@ -29,19 +29,22 @@ window.onload = function () {
     // Check game state
     check_game_state();
 
+    // Event Listeners
+    link_event_listeners();
+
     if (_GET.game == 5) {
 
         async function ai_vs_ai() {
 
             // Check game state
-            const game_over = check_game_state();
+            game_over = check_game_state();
             if (game_over) return;
 
             const diff = board.turn == 'w' ? 4 : 5;
 
             const move = await get_ai_move(board, diff);
             highlight_move(move);
-            move?.execute(() => {
+            move?.execute(true, () => {
                 // Update URL
                 update_url();
 
@@ -53,12 +56,12 @@ window.onload = function () {
 
         ai_vs_ai();
 
-    } else if (_GET.game != 0 && side != board.turn) {
+    } else if (_GET.game != 0 && play_as != board.turn) {
 
         (async () => {
             const move = await get_ai_move(board, _GET.game);
             highlight_move(move);
-            move?.execute(() => {
+            move?.execute(true, () => {
                 // Update URL
                 update_url();
             });
@@ -71,7 +74,7 @@ window.onload = function () {
 interface GameVars {
     game?: number
     fen_str?: string
-    side?: string
+    play_as?: string
     parent_elem?: JQuery<HTMLElement> | HTMLElement;
 }
 
@@ -88,9 +91,9 @@ function parse_get_vars() {
     if (fen_str)
         _GET.fen_str = fen_str;
 
-    const side = url.searchParams.get('side');
-    if (side)
-        _GET.side = side;
+    const play_as = url.searchParams.get('play_as');
+    if (play_as)
+        _GET.play_as = play_as;
 
     return _GET;
 
@@ -104,16 +107,16 @@ function check_load_game(game_vars: GameVars) {
     }
     board = new Board({
         fen_str: game_vars.fen_str,
-        side: game_vars.side == 'b' ? 'b' : 'w',
+        side: game_vars.play_as == 'b' ? 'b' : 'w',
         parent_elem: game_vars.parent_elem,
         tile_onclick: tile_onclick
     });
     return true;
 }
 
-function tile_onclick(tile: JQuery<HTMLElement> | HTMLElement, code: string, x: number, y: number, piece?: Piece) {
+function tile_onclick(tile: JQuery<HTMLElement> | HTMLElement, code: string, x: number, y: number, dropped: boolean, piece?: Piece) {
 
-    if (game_mode > 0 && side != board.turn) return; // Return if AI should move
+    if (game_over || (game_mode > 0 && play_as != board.turn)) return; // Return if AI should move or game over
 
     if (piece) {
 
@@ -188,13 +191,13 @@ function tile_onclick(tile: JQuery<HTMLElement> | HTMLElement, code: string, x: 
 
                     // Make the move
                     highlight_move(move);
-                    move.execute(() => {
+                    move.execute(!dropped, () => {
 
                         // Update the URL
                         update_url();
 
                         // Check game state
-                        const game_over = check_game_state();
+                        game_over = check_game_state();
 
                         // Call AI if applicable
                         if (!game_over && game_mode > 0) {
@@ -203,7 +206,7 @@ function tile_onclick(tile: JQuery<HTMLElement> | HTMLElement, code: string, x: 
 
                                 const move = await get_ai_move(board, game_mode);
                                 highlight_move(move);
-                                move?.execute(() => {
+                                move?.execute(true, () => {
                                     // Update URL
                                     update_url();
 
@@ -248,12 +251,16 @@ function check_game_state() {
         if (checkmate) {
             window.alert(`${board.turn == 'w' ? 'Black' : 'White'} won by checkmate in ${board.turn_num} turns.`);
         } else if (stalemate) {
-            window.alert(`${board.turn == 'w' ? 'Black' : 'White'} has entered stalemate in ${board.turn_num} turns.`);
+            window.alert(`${board.state?.stale_reason} ${board.turn == 'w' ? 'Black' : 'White'} has entered stalemate in ${board.turn_num} turns.`);
         } else if (check) {
-            window.alert(`${board.turn == 'w' ? 'White' : 'Black'} is in check.`);
+            $("#check-alert").fadeIn("fast").html(`${board.turn == 'w' ? 'White' : 'Black'} is in check.`);
+            setTimeout(() => {
+                $("#check-alert").fadeOut("slow");
+            }, 2500);
         }
     }, 0);
-    return checkmate || stalemate;
+    update_state_buttons();
+    return checkmate || stalemate || false;
 }
 
 function highlight_move(move?: Move) {
@@ -274,6 +281,16 @@ function remove_all_highlights() {
     $('.new-position').removeClass('new-position');
 }
 
+function update_state_buttons() {
+    const undo_active = board.state?.prev || false;
+    $('#undo').prop('disabled', !undo_active)
+        .attr('aria-disabled', `${!undo_active}`);
+
+    const redo_active = board.state_store.length > 0;
+    $('#redo').prop('disabled', !redo_active)
+        .attr('aria-disabled', `${!redo_active}`);
+}
+
 function link_event_listeners() {
     // New Game
     $("#new-game-btn").on("click", () => {
@@ -287,56 +304,87 @@ function link_event_listeners() {
 
     // PvP
     $("#play-player").on("click", () => {
-        window.location.assign(`${location.pathname}?game=0&side=${side}`);
+        window.location.assign(`${location.pathname}?game=0&play_as=${play_as}`);
     });
 
     // AI Beginner
     $("#play-ai-beginner").on("click", () => {
-        window.location.assign(`${location.pathname}?game=1&side=${side}`);
+        window.location.assign(`${location.pathname}?game=1&play_as=${play_as}`);
     });
 
     // AI Easy
     $("#play-ai-easy").on("click", () => {
-        window.location.assign(`${location.pathname}?game=2&side=${side}`);
+        window.location.assign(`${location.pathname}?game=2&play_as=${play_as}`);
     });
 
     // AI Normal
     $("#play-ai-normal").on("click", () => {
-        window.location.assign(`${location.pathname}?game=3&side=${side}`);
+        window.location.assign(`${location.pathname}?game=3&play_as=${play_as}`);
     });
 
     // AI Hard
     $("#play-ai-hard").on("click", () => {
-        window.location.assign(`${location.pathname}?game=4&side=${side}`);
+        window.location.assign(`${location.pathname}?game=4&play_as=${play_as}`);
     });
 
     // Undo
-    $("#undo").on("click", () => {
-        window.history.back();
+    $("#undo").on("click", (e) => {
+        board.previous_state();
+        game_over = check_game_state();
+        update_state_buttons();
     });
 
     // Redo
-    $("#redo").on("click", () => {
-        window.history.forward();
+    $("#redo").on("click", (e) => {
+        board.next_state();
+        game_over = check_game_state();
+        update_state_buttons();
     });
 
-    // Side Button
-    $("#side-btn").on("click", (e) => {
-        side = $(e.delegateTarget).attr('side') == 'w' ? 'b' : 'w';
-        $(e.delegateTarget)
-            .attr('side', side)
-            .css('background-color', side == 'w' ? 'white' : 'black')
-            .css('color', side == 'w' ? 'black' : 'white')
-            .html(side == 'w' ? "Play as <strong>Black</strong>" : "Play as <strong>White</strong>");
+    // Update state buttons
+    update_state_buttons();
+
+    // Play As Button
+    const update_play_as = (elem: HTMLElement | JQuery<HTMLElement>) => {
+        $(elem)
+            .attr('play-as', play_as)
+            .css('background-color', play_as == 'w' ? 'white' : 'black')
+            .css('color', play_as == 'w' ? 'black' : 'white')
+            .html(play_as == 'w' ? "Play as <strong>Black</strong>" : "Play as <strong>White</strong>");
+    };
+    update_play_as(
+        $("#play-as-btn").on("click", (e) => {
+            play_as = $(e.delegateTarget).attr('play-as') == 'w' ? 'b' : 'w';
+            update_play_as(e.delegateTarget);
+        }).attr('play-as', play_as)
+    );
+
+
+    // Rotate Board
+    $("#rotate-board").on("click", () => {
+        if (board.elem) {
+            $(board.elem).remove();
+        }
+        board.side = board.side == 'w' ? 'b' : 'w';
+        board.append_to($('#chess-container'));
     });
 
-    window.onpopstate = () => {
-        window.location.reload();
-    }
+    // Check alert
+    $("#check-alert").on("click", (e) => {
+        $(e.delegateTarget).hide();
+    });
 
 }
 
 async function get_ai_move(board: Board, difficulty = 1, depth?: number): Promise<Move | undefined> {
+
+    // Add wait cursor
+    let first = false;
+    if (depth === undefined && board.elem) {
+        $(board.elem).addClass('wait')
+            .find('td').addClass('wait');
+        first = true;
+    }
 
     // Allow breathing room for UI events
     await new Promise(resolve => {
@@ -350,149 +398,158 @@ async function get_ai_move(board: Board, difficulty = 1, depth?: number): Promis
     console.log(side);
     const value_mult = (side == 'w' ? 1 : -1);
     const moves = board.get_executable_moves();
-    if (moves.length == 0) return undefined;
+    let selected_move = undefined;
+    if (moves.length > 0) {
 
-    // Select difficulty
-    switch (difficulty) {
-        case 5: {
-            const move_data = new Array<{ move: Move, value: number, following_move?: Move, following_result?: Board, result: Board }>();
-            const initial_depth = 1;
-            if (depth === undefined) depth = initial_depth;
-            for (let i = 0; i < moves.length; i++) {
+        // Select difficulty
+        switch (difficulty) {
+            case 5: {
+                const move_data = new Array<{ move: Move, value: number, following_move?: Move, following_result?: Board, result: Board }>();
+                const initial_depth = 1;
+                if (depth === undefined) depth = initial_depth;
+                for (let i = 0; i < moves.length; i++) {
 
-                // Similar to 3
-                let result = moves[i].get_result();
-                let following_move = undefined;
-                let following_result = undefined;
-                if (depth > 0) {
-                    following_move = await get_ai_move(result, difficulty, 0);
-                    if (following_move) {
-                        result = following_move.get_result();
-                        following_result = result;
-                    }
-                }
-                const value = result.get_value(true) * value_mult;
-
-                // Store for ranking
-                move_data.push({ move: moves[i], value: value, result: result, following_move: following_move, following_result: following_result });
-
-            }
-
-            // Sort moves
-            const sorted_moves = move_data.sort((a, b) => b.value - a.value);
-            const pool_size = depth == initial_depth ? Math.min(sorted_moves.length, 16) : (1 + depth);
-            let best = undefined;
-            let max = -Infinity;
-            if (sorted_moves.length > 0) {
-                for (let b = 0; b < Math.min(sorted_moves.length, pool_size); b++) {
-                    const move = sorted_moves[b].move;
-                    const result = sorted_moves[b].following_result || sorted_moves[b].result;
-                    let value = sorted_moves[b].value;
+                    // Similar to 3
+                    let result = moves[i].get_result();
+                    let following_move = undefined;
+                    let following_result = undefined;
                     if (depth > 0) {
-                        const updated_move = await get_ai_move(result, difficulty, depth - 1);
-                        if (updated_move) {
-                            const updated_result = updated_move.get_result();
-                            value = updated_result.get_value(true) * value_mult;
+                        following_move = await get_ai_move(result, difficulty, 0);
+                        if (following_move) {
+                            result = following_move.get_result();
+                            following_result = result;
                         }
                     }
-                    if (value > max || (value == max && Math.random() <= 0.2)) {
+                    const value = result.get_value(true) * value_mult;
+
+                    // Store for ranking
+                    move_data.push({ move: moves[i], value: value, result: result, following_move: following_move, following_result: following_result });
+
+                }
+
+                // Sort moves
+                const sorted_moves = move_data.sort((a, b) => b.value - a.value);
+                const pool_size = depth == initial_depth ? Math.min(sorted_moves.length, 16) : (1 + depth);
+                let best = undefined;
+                let max = -Infinity;
+                if (sorted_moves.length > 0) {
+                    for (let b = 0; b < Math.min(sorted_moves.length, pool_size); b++) {
+                        const move = sorted_moves[b].move;
+                        const result = sorted_moves[b].following_result || sorted_moves[b].result;
+                        let value = sorted_moves[b].value;
+                        if (depth > 0) {
+                            const updated_move = await get_ai_move(result, difficulty, depth - 1);
+                            if (updated_move) {
+                                const updated_result = updated_move.get_result();
+                                value = updated_result.get_value(true) * value_mult;
+                            }
+                        }
+                        if (value > max || (value == max && Math.random() <= 0.2)) {
+                            max = value;
+                            best = move;
+                        }
+                    }
+                }
+                if (!best) {
+                    console.log("no best move, returning random...");
+                    selected_move = get_ai_move(board, 1); // return random if there was no best move
+                } else {
+                    if (depth == initial_depth) {
+                        console.log(`AI ${difficulty} best move [turn=${board.turn_num}] for ${board.turn}:`, max, best);
+                    }
+                    selected_move = best;
+                }
+                break;
+            }
+            case 4: {
+                const move_data = new Array<{ move: Move, value: number, result: Board }>();
+                if (depth === undefined) depth = 1;
+                let best = undefined;
+                let max = -Infinity;
+                for (let i = 0; i < moves.length; i++) {
+                    let result = moves[i].get_result();
+                    if (depth > 0) {
+                        const opposing_move = await get_ai_move(result, difficulty, depth - 1);
+                        if (opposing_move) {
+                            result = opposing_move.get_result();
+                        }
+                    }
+                    const value = result.get_value(true) * value_mult;
+                    move_data.push({ move: moves[i], value: value, result: result });
+                    if (value > max || (value == max && Math.random() <= (2.0 / moves.length))) {
                         max = value;
-                        best = move;
+                        best = moves[i];
                     }
                 }
-            } else {
-                return undefined;
+                if (depth == 1) {
+                    console.log(move_data);
+                    console.log(`AI ${difficulty} best move [turn=${board.turn_num}] for ${board.turn}:`, max, best);
+                }
+                if (!best) {
+                    console.log("no best move, returning random...");
+                    selected_move = get_ai_move(board, 1); // return random if there was no best move
+                } else {
+                    selected_move = best;
+                }
+                break;
             }
-            if (!best) {
-                console.log("no best move, returning random...");
-                return get_ai_move(board, 1); // return random if there was no best move
-            }
-            if (depth == initial_depth) {
-                console.log(`AI ${difficulty} best move [turn=${board.turn_num}] for ${board.turn}:`, max, best);
-            }
-            return best;
-        }
-        case 4: {
-            const move_data = new Array<{ move: Move, value: number }>();
-            if (depth === undefined) depth = 1;
-            let best = undefined;
-            let max = -Infinity;
-            for (let i = 0; i < moves.length; i++) {
-                let result = moves[i].get_result();
-                if (depth > 0) {
-                    const opposing_move = await get_ai_move(result, difficulty, depth - 1);
-                    if (opposing_move) {
-                        result = opposing_move.get_result();
+            case 3: {
+                // const move_data = new Array<{ move: Move, value: number }>();
+                if (depth === undefined) depth = 1;
+                let best = undefined;
+                let max = -Infinity;
+                for (let i = 0; i < moves.length; i++) {
+                    let result = moves[i].get_result();
+                    if (depth > 0) {
+                        const opposing_move = await get_ai_move(result, difficulty, depth - 1);
+                        if (opposing_move) {
+                            result = opposing_move.get_result();
+                        }
+                    }
+                    const value = result.get_value() * value_mult;
+                    // move_data.push({ move: moves[i], value: value });
+                    if (value > max || (value == max && Math.random() <= (2.0 / moves.length))) {
+                        max = value;
+                        best = moves[i];
                     }
                 }
-                const value = result.get_value(true) * value_mult;
-                move_data.push({ move: moves[i], value: value });
-                if (value > max || (value == max && Math.random() <= (2.0 / moves.length))) {
-                    max = value;
-                    best = moves[i];
+                if (depth == 1) {
+                    // console.log(move_data);
+                    console.log(`AI ${difficulty} best move [turn=${board.turn_num}] for ${board.turn}:`, max, best);
                 }
-                if (moves[i].type.slice(5) === 'promo') {
-                    console.log(moves[i], value, move_data, best, max);
+                if (!best) {
+                    console.log("no best move, returning random...");
+                    selected_move = get_ai_move(board, 1); // return random if there was no best move
+                } else {
+                    selected_move = best;
                 }
+                break;
             }
-            if (depth == 1) {
-                // console.log(move_data);
-                console.log(`AI ${difficulty} best move [turn=${board.turn_num}] for ${board.turn}:`, max, best);
-            }
-            if (!best) {
-                console.log("no best move, returning random...");
-                return get_ai_move(board, 1); // return random if there was no best move
-            }
-            return best;
-        }
-        case 3: {
-            const move_data = new Array<{ move: Move, value: number }>();
-            if (depth === undefined) depth = 1;
-            let best = undefined;
-            let max = -Infinity;
-            for (let i = 0; i < moves.length; i++) {
-                let result = moves[i].get_result();
-                if (depth > 0) {
-                    const opposing_move = await get_ai_move(result, difficulty, depth - 1);
-                    if (opposing_move) {
-                        result = opposing_move.get_result();
+            case 2: {
+                let best = random_move(moves);
+                if (!best) return undefined;
+                let max = best.get_result().get_value() * value_mult;
+                for (let i = 0; i < moves.length; i++) {
+                    const value = moves[i].get_result().get_value() * value_mult;
+                    if (value > max) {
+                        max = value;
+                        best = moves[i];
                     }
                 }
-                const value = result.get_value() * value_mult;
-                move_data.push({ move: moves[i], value: value });
-                if (value > max || (value == max && Math.random() <= (2.0 / moves.length))) {
-                    max = value;
-                    best = moves[i];
-                }
+                selected_move = best;
+                break;
             }
-            if (depth == 1) {
-                // console.log(move_data);
-                console.log(`AI ${difficulty} best move [turn=${board.turn_num}] for ${board.turn}:`, max, best);
-            }
-            if (!best) {
-                console.log("no best move, returning random...");
-                return get_ai_move(board, 1); // return random if there was no best move
-            }
-            return best;
+            case 1:
+            default:
+                selected_move = random_move(moves);
+                break;
         }
-        case 2: {
-            let best = random_move(moves);
-            if (!best) return undefined;
-            let max = best.get_result().get_value() * value_mult;
-            for (let i = 0; i < moves.length; i++) {
-                const value = moves[i].get_result().get_value() * value_mult;
-                console.log(moves[i], value);
-                if (value > max) {
-                    max = value;
-                    best = moves[i];
-                }
-            }
-            return best;
-        }
-        case 1:
-        default:
-            return random_move(moves);
     }
+
+    // Remove wait cursor
+    if (first && board.elem) $('.wait').removeClass('wait');
+
+    return selected_move;
 }
 
 function random_move(moves: Move[]) {

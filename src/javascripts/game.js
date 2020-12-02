@@ -22,7 +22,7 @@ class Move {
             this.capture(captured_piece);
         }
     }
-    execute(done) {
+    execute(animate = true, done) {
         const board = this.piece.board;
         board.en_passant = undefined;
         if (this.is_stale()) {
@@ -60,23 +60,37 @@ class Move {
                 }
             }
         }
-        if (this.after) {
-            const after = this.after;
-            this.piece.move(this, () => {
-                after(done || (() => { }));
-            });
+        const end_move = () => {
+            if (board.turn == 'b') {
+                board.turn_num++;
+                board.turn = 'w';
+            }
+            else {
+                board.turn = 'b';
+            }
+            board.refresh();
+            board.push_state();
+            if (done)
+                done();
+        };
+        if (done) {
+            if (this.after) {
+                const after = this.after;
+                this.piece.move(this, animate, () => {
+                    after(this.piece, end_move);
+                });
+            }
+            else {
+                this.piece.move(this, animate, end_move);
+            }
         }
         else {
-            this.piece.move(this, done);
+            this.piece.move(this, false);
+            if (this.after) {
+                this.after(this.piece);
+            }
+            end_move();
         }
-        if (board.turn == 'b') {
-            board.turn_num++;
-            board.turn = 'w';
-        }
-        else {
-            board.turn = 'b';
-        }
-        board.refresh();
     }
     is_stale() {
         return !(this.piece instanceof Pawn || this.captured_piece !== undefined);
@@ -105,16 +119,21 @@ class Move {
     }
     get_result() {
         const board_copy = new Board({ fen_str: this.piece.board.get_fen_string() });
+        board_copy.state = this.piece.board.state;
         const piece = board_copy.piece_at(this.piece.pos);
+        if (!piece) {
+            console.log(this);
+            throw new Error("Could not find copy of piece in board copy.");
+        }
         let captured_piece = undefined;
         if (this.captured_piece) {
             captured_piece = board_copy.piece_at(this.captured_piece.pos);
             if (!captured_piece)
                 throw new Error("Could not find copy of captured piece in board copy.");
         }
-        if (!piece)
-            throw new Error("Could not find copy of piece in board copy.");
-        (new Move(piece, this.x, this.y, this.type, captured_piece)).execute();
+        const move = new Move(piece, this.x, this.y, this.type, captured_piece);
+        move.after = this.after;
+        move.execute();
         return board_copy;
     }
 }
@@ -129,7 +148,7 @@ class Piece {
         this.add_to_board();
     }
     add_to_board() {
-        if (this.board.board_elem) {
+        if (this.board.elem) {
             this.elem = this.make_elem();
             this.board.place_piece_at(this, this.pos);
         }
@@ -148,7 +167,7 @@ class Piece {
         ;
         return moves;
     }
-    move(pos, done) {
+    move(pos, animate = true, done) {
         const animate_piece = (elem, start_left, start_top, end_left, end_top, t, after) => __awaiter(this, void 0, void 0, function* () {
             if (t >= 1) {
                 after();
@@ -162,14 +181,15 @@ class Piece {
                 animate_piece(elem, start_left, start_top, end_left, end_top, t + (1.0 / steps), after);
             }, duration / steps);
         });
-        this.board.tiles[this.pos.x][this.pos.y] = undefined;
+        const last_pos = this.pos;
+        this.pos = pos;
+        this.board.tiles[last_pos.x][last_pos.y] = undefined;
         this.board.tiles[pos.x][pos.y] = this;
         if (this.elem) {
-            const start = $(`td[x=${this.pos.x}][y=${this.pos.y}]`).position();
+            const start = $(`td[x=${last_pos.x}][y=${last_pos.y}]`).position();
             const end = $(`td[x=${pos.x}][y=${pos.y}]`).position();
             const elem = this.elem;
-            $(elem).css("transform", `translate(0, 0)`).css('z-index', '99');
-            animate_piece(elem, start.left, start.top, end.left, end.top, 0, () => {
+            const place_piece = () => {
                 $(elem)
                     .remove()
                     .attr('style', '');
@@ -179,9 +199,17 @@ class Piece {
                 if (done) {
                     done();
                 }
-            });
+            };
+            if (animate) {
+                $(elem).css("transform", `translate(0, 0)`).css('z-index', '99');
+                animate_piece(elem, start.left, start.top, end.left, end.top, 0, () => {
+                    place_piece();
+                });
+            }
+            else {
+                place_piece();
+            }
         }
-        this.pos = pos;
     }
     take() {
         this.taken = true;
@@ -257,6 +285,31 @@ class Piece {
         }
         return moves;
     }
+    make_elem(type) {
+        var img_class = 'pawn';
+        switch (type) {
+            case 'q':
+                img_class = 'queen';
+                break;
+            case 'r':
+                img_class = 'rook';
+                break;
+            case 'b':
+                img_class = 'bishop';
+                break;
+            case 'n':
+                img_class = 'knight';
+                break;
+            case 'k':
+                img_class = 'king';
+                break;
+        }
+        return $(document.createElement("img"))
+            .attr("src", `https://midpoint68.github.io/chess/img/${this.board.piece_set_name}/${this.color}${type}.png`)
+            .attr('draggable', 'true')
+            .attr('ondragstart', `event.dataTransfer.setData("text/plain",null);console.log('dragging')`)
+            .addClass(`piece ${img_class}`);
+    }
 }
 class Pawn extends Piece {
     get_worth() {
@@ -272,9 +325,12 @@ class Pawn extends Piece {
             if (move.y == far_y) {
                 const promote_move = (move, type) => {
                     move.set_type(`promote_${type}`);
-                    move.after = (done) => {
-                        this.promote_to(type);
-                        done();
+                    move.after = (piece, done) => {
+                        if (piece instanceof Pawn) {
+                            piece.promote_to(type);
+                        }
+                        if (done)
+                            done();
                     };
                 };
                 promote_move(move, 'q');
@@ -298,9 +354,10 @@ class Pawn extends Piece {
                 moves.push(move);
                 if (!this.board.has_piece_at(move) && !this.board.has_piece_at(en_passant)) {
                     move.set_type('pawn-rush');
-                    move.after = (done) => {
-                        this.board.en_passant = en_passant;
-                        done();
+                    move.after = (piece, done) => {
+                        piece.board.en_passant = en_passant;
+                        if (done)
+                            done();
                     };
                 }
             }
@@ -344,15 +401,11 @@ class Pawn extends Piece {
                 new_piece = new Queen(this.pos.x, this.pos.y, this.color, this.board);
                 break;
         }
-        this.board.refresh();
-        console.log(new_piece);
         if (!new_piece)
             throw new Error(`Could not promote to type ${type}.`);
     }
     make_elem() {
-        return $(document.createElement("img"))
-            .attr("src", `https://midpoint68.github.io/chess/img/${this.board.piece_set_name}/${this.color}p.png`)
-            .addClass("piece pawn");
+        return super.make_elem('p');
     }
 }
 class Rook extends Piece {
@@ -363,9 +416,7 @@ class Rook extends Piece {
         return this.get_straight_moves();
     }
     make_elem() {
-        return $(document.createElement("img"))
-            .attr("src", `https://midpoint68.github.io/chess/img/${this.board.piece_set_name}/${this.color}r.png`)
-            .addClass("piece rook");
+        return super.make_elem('r');
     }
 }
 class Knight extends Piece {
@@ -403,9 +454,7 @@ class Knight extends Piece {
         return moves;
     }
     make_elem() {
-        return $(document.createElement("img"))
-            .attr("src", `https://midpoint68.github.io/chess/img/${this.board.piece_set_name}/${this.color}n.png`)
-            .addClass("piece knight");
+        return super.make_elem('n');
     }
 }
 class Bishop extends Piece {
@@ -416,9 +465,7 @@ class Bishop extends Piece {
         return this.get_diagonal_moves();
     }
     make_elem() {
-        return $(document.createElement("img"))
-            .attr("src", `https://midpoint68.github.io/chess/img/${this.board.piece_set_name}/${this.color}b.png`)
-            .addClass("piece bishop");
+        return super.make_elem('b');
     }
 }
 class Queen extends Piece {
@@ -430,9 +477,7 @@ class Queen extends Piece {
         return moves;
     }
     make_elem() {
-        return $(document.createElement("img"))
-            .attr("src", `https://midpoint68.github.io/chess/img/${this.board.piece_set_name}/${this.color}q.png`)
-            .addClass("piece queen");
+        return super.make_elem('q');
     }
 }
 class King extends Piece {
@@ -448,11 +493,11 @@ class King extends Piece {
                 if (!this.board.has_piece_at({ x: 5, y: 0 }) && !this.board.has_piece_at({ x: 6, y: 0 })) {
                     if (!this.board.is_check()) {
                         castle.set_type('castle');
-                        castle.after = (done) => {
-                            const rook = this.board.piece_at({ x: 7, y: 0 });
+                        castle.after = (piece, done) => {
+                            const rook = piece.board.piece_at({ x: 7, y: 0 });
                             if (!rook)
                                 throw new Error("Rook expected at H1 for castle.");
-                            rook.move({ x: 5, y: 0 }, done);
+                            rook.move({ x: 5, y: 0 }, true, done);
                         };
                     }
                 }
@@ -463,11 +508,11 @@ class King extends Piece {
                 if (!this.board.has_piece_at({ x: 1, y: 0 }) && !this.board.has_piece_at({ x: 2, y: 0 }) && !this.board.has_piece_at({ x: 3, y: 0 })) {
                     if (!this.board.is_check()) {
                         castle.set_type('castle');
-                        castle.after = (done) => {
-                            const rook = this.board.piece_at({ x: 0, y: 0 });
+                        castle.after = (piece, done) => {
+                            const rook = piece.board.piece_at({ x: 0, y: 0 });
                             if (!rook)
                                 throw new Error("Rook expected at A1 for castle.");
-                            rook.move({ x: 3, y: 0 }, done);
+                            rook.move({ x: 3, y: 0 }, true, done);
                         };
                     }
                 }
@@ -480,11 +525,11 @@ class King extends Piece {
                 if (!this.board.has_piece_at({ x: 5, y: 7 }) && !this.board.has_piece_at({ x: 6, y: 7 })) {
                     if (!this.board.is_check()) {
                         castle.set_type('castle');
-                        castle.after = (done) => {
-                            const rook = this.board.piece_at({ x: 7, y: 7 });
+                        castle.after = (piece, done) => {
+                            const rook = piece.board.piece_at({ x: 7, y: 7 });
                             if (!rook)
                                 throw new Error("Rook expected at H8 for castle.");
-                            rook.move({ x: 5, y: 7 }, done);
+                            rook.move({ x: 5, y: 7 }, true, done);
                         };
                     }
                 }
@@ -495,11 +540,11 @@ class King extends Piece {
                 if (!this.board.has_piece_at({ x: 1, y: 7 }) && !this.board.has_piece_at({ x: 2, y: 7 }) && !this.board.has_piece_at({ x: 3, y: 7 })) {
                     if (!this.board.is_check()) {
                         castle.set_type('castle');
-                        castle.after = (done) => {
-                            const rook = this.board.piece_at({ x: 0, y: 7 });
+                        castle.after = (piece, done) => {
+                            const rook = piece.board.piece_at({ x: 0, y: 7 });
                             if (!rook)
                                 throw new Error("Rook expected at A8 for castle.");
-                            rook.move({ x: 3, y: 7 }, done);
+                            rook.move({ x: 3, y: 7 }, true, done);
                         };
                     }
                 }
@@ -536,9 +581,7 @@ class King extends Piece {
         return moves;
     }
     make_elem() {
-        return $(document.createElement("img"))
-            .attr("src", `https://midpoint68.github.io/chess/img/${this.board.piece_set_name}/${this.color}k.png`)
-            .addClass("piece king");
+        return super.make_elem('k');
     }
 }
 class Board {
@@ -548,11 +591,14 @@ class Board {
         this.piece_set_name = "kiffset_light";
         this.king = { 'w': undefined, 'b': undefined };
         this.tile_onclick = tile_onclick;
+        this.state = undefined;
+        this.state_store = new Array();
         if (parent_elem) {
             $(parent_elem).html("");
             this.append_to(parent_elem);
         }
         this.load_fen(fen_str);
+        this.push_state();
     }
     static in_bounds(pos) {
         return (pos.x >= 0 && pos.x < 8 && pos.y >= 0 && pos.y < 8);
@@ -632,6 +678,34 @@ class Board {
         }
         this.save_fen_cache(fen_str);
     }
+    push_state() {
+        this.state = new BoardState(this, this.state);
+        this.state_store = new Array();
+    }
+    previous_state() {
+        if (this.state && this.state.prev) {
+            this.state_store.push(this.state);
+            this.state = this.state.prev;
+            this.load_fen(this.state.fen_str);
+            if (this.elem) {
+                const parent = $(this.elem).parent();
+                $(this.elem).remove();
+                this.append_to(parent);
+            }
+        }
+    }
+    next_state() {
+        const state = this.state_store.pop();
+        if (state) {
+            this.state = state;
+            this.load_fen(this.state.fen_str);
+            if (this.elem) {
+                const parent = $(this.elem).parent();
+                $(this.elem).remove();
+                this.append_to(parent);
+            }
+        }
+    }
     save_fen_cache(fen_str) {
         this.fen_cache = {
             fen_str: fen_str,
@@ -641,7 +715,7 @@ class Board {
     }
     append_to(elem) {
         const board = $(document.createElement("table")).addClass("chess-board");
-        this.board_elem = board;
+        this.elem = board;
         $(elem).append(board);
         for (let row = 1; row <= 8; row++) {
             const tr = $(document.createElement("tr"));
@@ -664,7 +738,35 @@ class Board {
                     const y = row - 1;
                     const piece = this.has_piece_at({ x: col, y: row - 1 }, this.turn);
                     if (this.tile_onclick)
-                        tile_onclick(e.delegateTarget, code, x, y, piece);
+                        this.tile_onclick(e.delegateTarget, code, x, y, false, piece);
+                })
+                    .on("dragstart", (e) => {
+                    const code = `${char}${row}`;
+                    const x = col;
+                    const y = row - 1;
+                    const piece = this.has_piece_at({ x: col, y: row - 1 }, this.turn);
+                    if (this.tile_onclick)
+                        this.tile_onclick(e.delegateTarget, code, x, y, false, piece);
+                })
+                    .on("dragenter", (e) => {
+                    $('.drag-hover').removeClass('drag-hover');
+                    $(e.delegateTarget).addClass('drag-hover');
+                })
+                    .on("dragend", (e) => {
+                    $('.drag-hover').removeClass('drag-hover');
+                })
+                    .on("dragover", (e) => {
+                    e.preventDefault();
+                })
+                    .on("dragleave", (e) => {
+                })
+                    .on("drop", (e) => {
+                    const code = `${char}${row}`;
+                    const x = col;
+                    const y = row - 1;
+                    const piece = this.has_piece_at({ x: col, y: row - 1 }, this.turn);
+                    if (this.tile_onclick)
+                        this.tile_onclick(e.delegateTarget, code, x, y, true, piece);
                 });
                 if (this.side == 'w') {
                     tr.append(tile);
@@ -683,6 +785,11 @@ class Board {
                         .html("" + char));
                 }
             }
+        }
+        if (this.pieces) {
+            this.pieces.w.concat(this.pieces.b).forEach(piece => {
+                this.place_piece_at(piece, piece.pos);
+            });
         }
         return board;
     }
@@ -842,19 +949,19 @@ class Board {
         return false;
     }
     is_check(side) {
-        let actual_turn = this.turn;
-        if (side) {
-            this.turn = (side == 'w' ? 'b' : 'w');
-        }
-        const check = BoardStateManager.is_check(this);
-        this.turn = actual_turn;
-        return check;
+        if (!this.state)
+            throw new Error(`State expected for board with FEN: ${this.get_fen_string()}`);
+        return this.state.is_check(side);
     }
     is_checkmate() {
-        return BoardStateManager.is_checkmate(this);
+        if (!this.state)
+            throw new Error(`State expected for board with FEN: ${this.get_fen_string()}`);
+        return this.state.is_checkmate();
     }
     is_stalemate() {
-        return BoardStateManager.is_stalemate(this);
+        if (!this.state)
+            throw new Error(`State expected for board with FEN: ${this.get_fen_string()}`);
+        return this.state.is_stalemate();
     }
     has_no_moves() {
         const defence_moves = this.get_moves(true, this.turn);
@@ -866,8 +973,8 @@ class Board {
         return true;
     }
     get_value(advanced) {
-        const checkmate = BoardStateManager.is_checkmate(this);
-        const stalemate = BoardStateManager.is_stalemate(this);
+        const checkmate = this.is_checkmate();
+        const stalemate = this.is_stalemate();
         if (checkmate)
             return this.turn == 'b' ? Infinity : -Infinity;
         let val = 0;
@@ -907,10 +1014,10 @@ class Board {
                         val += move.captured_piece.get_worth() * capture_multiplier * (move.captured_piece.color == 'w' ? -1 : 1);
                     }
                     switch (move.type) {
-                        case 'promotion_q':
-                        case 'promotion_r':
-                        case 'promotion_b':
-                        case 'promotion_n':
+                        case 'promote_q':
+                        case 'promote_r':
+                        case 'promote_b':
+                        case 'promote_n':
                             val += promotion_points * (move.piece.color == 'w' ? 1 : -1);
                             break;
                         case 'castle':
@@ -931,93 +1038,91 @@ class Board {
     }
 }
 Board.START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
-class BoardStateManager {
-    static is_check(board) {
-        const fen_str = board.get_fen_string();
-        const state = this.STATES.get(fen_str);
-        if (state) {
-            return state.is_check;
+class BoardState {
+    constructor(board, prev) {
+        this.board = board;
+        this.fen_str = board.get_fen_string();
+        this.position = this.fen_str.slice(0, this.fen_str.indexOf(' '));
+        this.turn = board.turn;
+        this.prev = prev;
+        this.occurrence = 1;
+        if (prev) {
+            let current = prev;
+            while (current) {
+                if (current.position === this.position) {
+                    this.occurrence = current.occurrence + 1;
+                    break;
+                }
+                current = current.prev;
+            }
         }
-        else {
-            const cache = this.save_cache(fen_str, board);
-            return cache.is_check;
-        }
+        this.check = board.calculate_check();
+        this.defence_check = board.calculate_check(this.turn);
+        this.calculated = false;
     }
-    static is_checkmate(board) {
-        const fen_str = board.get_fen_string();
-        let state = this.STATES.get(fen_str);
-        if (!state) {
-            state = this.save_cache(fen_str, board);
+    is_check(side) {
+        if (side && side == this.turn) {
+            return this.defence_check;
         }
-        if (state.calculated) {
-            return state.is_checkmate || false;
-        }
-        else {
-            this.calculate_cache(state, board);
-            return state.is_checkmate || false;
-        }
+        return this.check;
     }
-    static is_stalemate(board) {
-        const fen_str = board.get_fen_string();
-        let state = this.STATES.get(fen_str);
-        if (!state) {
-            state = this.save_cache(fen_str, board);
+    calculate_state() {
+        const has_no_moves = this.board.has_no_moves();
+        this.checkmate = this.check && has_no_moves;
+        this.stalemate = false;
+        if (!this.check && has_no_moves) {
+            this.stalemate = true;
+            this.stale_reason = "There are no moves available for the defensive side.";
         }
-        if (state.calculated) {
-            return state.is_stalemate || false;
+        else if (this.board.halfturn_num >= 50) {
+            this.stalemate = true;
+            this.stale_reason = "There have been 50 moves without a capture or pawn move.";
         }
-        else {
-            this.calculate_cache(state, board);
-            return state.is_stalemate || false;
+        else if (this.occurrence >= 3) {
+            this.stalemate = true;
+            this.stale_reason = "The resulting position has occurred 3 times.";
         }
+        this.calculated = true;
     }
-    static save_cache(fen_str, board) {
-        if (this.STATES.size > 100000) {
-            console.warn("Board Cache too big... Reducing...");
-            this.STATES = new Map();
-        }
-        const check = board.calculate_check();
-        const state_cache = {
-            fen_str: fen_str,
-            is_check: check,
-            calculated: false
-        };
-        this.STATES.set(fen_str, state_cache);
-        return state_cache;
+    is_checkmate() {
+        if (!this.calculated)
+            this.calculate_state();
+        return this.checkmate;
     }
-    static calculate_cache(state, board) {
-        const check = state.is_check;
-        const has_no_moves = board.has_no_moves();
-        state.is_checkmate = check && has_no_moves;
-        state.is_stalemate = (!check && has_no_moves) || board.halfturn_num >= 50;
+    is_stalemate() {
+        if (!this.calculated)
+            this.calculate_state();
+        return this.stalemate;
     }
 }
-BoardStateManager.STATES = new Map();
 var board;
 var game_mode;
-var side;
+var game_over = false;
+var play_as;
 window.onload = function () {
     const _GET = parse_get_vars();
     game_mode = _GET.game || 0;
-    side = _GET.side == 'b' ? 'b' : 'w';
-    link_event_listeners();
+    play_as = _GET.play_as == 'b' ? 'b' : 'w';
+    console.log(play_as);
     if (!check_load_game(_GET)) {
         board = new Board({
             parent_elem: $("#chess-container"),
-            tile_onclick: tile_onclick
+            tile_onclick: tile_onclick,
+            side: play_as
         });
     }
     check_game_state();
+    link_event_listeners();
     if (_GET.game == 5) {
         function ai_vs_ai() {
             return __awaiter(this, void 0, void 0, function* () {
-                const game_over = check_game_state();
+                game_over = check_game_state();
                 if (game_over)
                     return;
                 const diff = board.turn == 'w' ? 4 : 5;
                 const move = yield get_ai_move(board, diff);
                 highlight_move(move);
-                move === null || move === void 0 ? void 0 : move.execute(() => {
+                move === null || move === void 0 ? void 0 : move.execute(true, () => {
                     update_url();
                     ai_vs_ai();
                 });
@@ -1025,11 +1130,11 @@ window.onload = function () {
         }
         ai_vs_ai();
     }
-    else if (_GET.game != 0 && side != board.turn) {
+    else if (_GET.game != 0 && play_as != board.turn) {
         (() => __awaiter(this, void 0, void 0, function* () {
             const move = yield get_ai_move(board, _GET.game);
             highlight_move(move);
-            move === null || move === void 0 ? void 0 : move.execute(() => {
+            move === null || move === void 0 ? void 0 : move.execute(true, () => {
                 update_url();
             });
         }))();
@@ -1046,9 +1151,9 @@ function parse_get_vars() {
         fen_str = unescape(fen_str);
     if (fen_str)
         _GET.fen_str = fen_str;
-    const side = url.searchParams.get('side');
-    if (side)
-        _GET.side = side;
+    const play_as = url.searchParams.get('play_as');
+    if (play_as)
+        _GET.play_as = play_as;
     return _GET;
 }
 function check_load_game(game_vars) {
@@ -1060,14 +1165,14 @@ function check_load_game(game_vars) {
     }
     board = new Board({
         fen_str: game_vars.fen_str,
-        side: game_vars.side == 'b' ? 'b' : 'w',
+        side: game_vars.play_as == 'b' ? 'b' : 'w',
         parent_elem: game_vars.parent_elem,
         tile_onclick: tile_onclick
     });
     return true;
 }
-function tile_onclick(tile, code, x, y, piece) {
-    if (game_mode > 0 && side != board.turn)
+function tile_onclick(tile, code, x, y, dropped, piece) {
+    if (game_over || (game_mode > 0 && play_as != board.turn))
         return;
     if (piece) {
         const moves = piece.get_valid_moves();
@@ -1138,14 +1243,14 @@ function tile_onclick(tile, code, x, y, piece) {
                 const move = moves[i];
                 if (move.x == pos.x && move.y == pos.y && (!promotion || move.type === promotion)) {
                     highlight_move(move);
-                    move.execute(() => {
+                    move.execute(!dropped, () => {
                         update_url();
-                        const game_over = check_game_state();
+                        game_over = check_game_state();
                         if (!game_over && game_mode > 0) {
                             setTimeout(() => __awaiter(this, void 0, void 0, function* () {
                                 const move = yield get_ai_move(board, game_mode);
                                 highlight_move(move);
-                                move === null || move === void 0 ? void 0 : move.execute(() => {
+                                move === null || move === void 0 ? void 0 : move.execute(true, () => {
                                     update_url();
                                     check_game_state();
                                 });
@@ -1172,17 +1277,22 @@ function check_game_state() {
     const stalemate = board.is_stalemate();
     const check = board.is_check();
     setTimeout(() => {
+        var _a;
         if (checkmate) {
             window.alert(`${board.turn == 'w' ? 'Black' : 'White'} won by checkmate in ${board.turn_num} turns.`);
         }
         else if (stalemate) {
-            window.alert(`${board.turn == 'w' ? 'Black' : 'White'} has entered stalemate in ${board.turn_num} turns.`);
+            window.alert(`${(_a = board.state) === null || _a === void 0 ? void 0 : _a.stale_reason} ${board.turn == 'w' ? 'Black' : 'White'} has entered stalemate in ${board.turn_num} turns.`);
         }
         else if (check) {
-            window.alert(`${board.turn == 'w' ? 'White' : 'Black'} is in check.`);
+            $("#check-alert").fadeIn("fast").html(`${board.turn == 'w' ? 'White' : 'Black'} is in check.`);
+            setTimeout(() => {
+                $("#check-alert").fadeOut("slow");
+            }, 2500);
         }
     }, 0);
-    return checkmate || stalemate;
+    update_state_buttons();
+    return checkmate || stalemate || false;
 }
 function highlight_move(move) {
     if (move) {
@@ -1200,6 +1310,15 @@ function remove_all_highlights() {
     $('.last-position').removeClass('last-position');
     $('.new-position').removeClass('new-position');
 }
+function update_state_buttons() {
+    var _a;
+    const undo_active = ((_a = board.state) === null || _a === void 0 ? void 0 : _a.prev) || false;
+    $('#undo').prop('disabled', !undo_active)
+        .attr('aria-disabled', `${!undo_active}`);
+    const redo_active = board.state_store.length > 0;
+    $('#redo').prop('disabled', !redo_active)
+        .attr('aria-disabled', `${!redo_active}`);
+}
 function link_event_listeners() {
     $("#new-game-btn").on("click", () => {
         $("#play-options").toggle("fast");
@@ -1208,40 +1327,61 @@ function link_event_listeners() {
         $("nav").toggle("fast");
     });
     $("#play-player").on("click", () => {
-        window.location.assign(`${location.pathname}?game=0&side=${side}`);
+        window.location.assign(`${location.pathname}?game=0&play_as=${play_as}`);
     });
     $("#play-ai-beginner").on("click", () => {
-        window.location.assign(`${location.pathname}?game=1&side=${side}`);
+        window.location.assign(`${location.pathname}?game=1&play_as=${play_as}`);
     });
     $("#play-ai-easy").on("click", () => {
-        window.location.assign(`${location.pathname}?game=2&side=${side}`);
+        window.location.assign(`${location.pathname}?game=2&play_as=${play_as}`);
     });
     $("#play-ai-normal").on("click", () => {
-        window.location.assign(`${location.pathname}?game=3&side=${side}`);
+        window.location.assign(`${location.pathname}?game=3&play_as=${play_as}`);
     });
     $("#play-ai-hard").on("click", () => {
-        window.location.assign(`${location.pathname}?game=4&side=${side}`);
+        window.location.assign(`${location.pathname}?game=4&play_as=${play_as}`);
     });
-    $("#undo").on("click", () => {
-        window.history.back();
+    $("#undo").on("click", (e) => {
+        board.previous_state();
+        game_over = check_game_state();
+        update_state_buttons();
     });
-    $("#redo").on("click", () => {
-        window.history.forward();
+    $("#redo").on("click", (e) => {
+        board.next_state();
+        game_over = check_game_state();
+        update_state_buttons();
     });
-    $("#side-btn").on("click", (e) => {
-        side = $(e.delegateTarget).attr('side') == 'w' ? 'b' : 'w';
-        $(e.delegateTarget)
-            .attr('side', side)
-            .css('background-color', side == 'w' ? 'white' : 'black')
-            .css('color', side == 'w' ? 'black' : 'white')
-            .html(side == 'w' ? "Play as <strong>Black</strong>" : "Play as <strong>White</strong>");
-    });
-    window.onpopstate = () => {
-        window.location.reload();
+    update_state_buttons();
+    const update_play_as = (elem) => {
+        $(elem)
+            .attr('play-as', play_as)
+            .css('background-color', play_as == 'w' ? 'white' : 'black')
+            .css('color', play_as == 'w' ? 'black' : 'white')
+            .html(play_as == 'w' ? "Play as <strong>Black</strong>" : "Play as <strong>White</strong>");
     };
+    update_play_as($("#play-as-btn").on("click", (e) => {
+        play_as = $(e.delegateTarget).attr('play-as') == 'w' ? 'b' : 'w';
+        update_play_as(e.delegateTarget);
+    }).attr('play-as', play_as));
+    $("#rotate-board").on("click", () => {
+        if (board.elem) {
+            $(board.elem).remove();
+        }
+        board.side = board.side == 'w' ? 'b' : 'w';
+        board.append_to($('#chess-container'));
+    });
+    $("#check-alert").on("click", (e) => {
+        $(e.delegateTarget).hide();
+    });
 }
 function get_ai_move(board, difficulty = 1, depth) {
     return __awaiter(this, void 0, void 0, function* () {
+        let first = false;
+        if (depth === undefined && board.elem) {
+            $(board.elem).addClass('wait')
+                .find('td').addClass('wait');
+            first = true;
+        }
         yield new Promise(resolve => {
             setTimeout(() => {
                 resolve('resolved');
@@ -1251,144 +1391,151 @@ function get_ai_move(board, difficulty = 1, depth) {
         console.log(side);
         const value_mult = (side == 'w' ? 1 : -1);
         const moves = board.get_executable_moves();
-        if (moves.length == 0)
-            return undefined;
-        switch (difficulty) {
-            case 5: {
-                const move_data = new Array();
-                const initial_depth = 1;
-                if (depth === undefined)
-                    depth = initial_depth;
-                for (let i = 0; i < moves.length; i++) {
-                    let result = moves[i].get_result();
-                    let following_move = undefined;
-                    let following_result = undefined;
-                    if (depth > 0) {
-                        following_move = yield get_ai_move(result, difficulty, 0);
-                        if (following_move) {
-                            result = following_move.get_result();
-                            following_result = result;
-                        }
-                    }
-                    const value = result.get_value(true) * value_mult;
-                    move_data.push({ move: moves[i], value: value, result: result, following_move: following_move, following_result: following_result });
-                }
-                const sorted_moves = move_data.sort((a, b) => b.value - a.value);
-                const pool_size = depth == initial_depth ? Math.min(sorted_moves.length, 16) : (1 + depth);
-                let best = undefined;
-                let max = -Infinity;
-                if (sorted_moves.length > 0) {
-                    for (let b = 0; b < Math.min(sorted_moves.length, pool_size); b++) {
-                        const move = sorted_moves[b].move;
-                        const result = sorted_moves[b].following_result || sorted_moves[b].result;
-                        let value = sorted_moves[b].value;
+        let selected_move = undefined;
+        if (moves.length > 0) {
+            switch (difficulty) {
+                case 5: {
+                    const move_data = new Array();
+                    const initial_depth = 1;
+                    if (depth === undefined)
+                        depth = initial_depth;
+                    for (let i = 0; i < moves.length; i++) {
+                        let result = moves[i].get_result();
+                        let following_move = undefined;
+                        let following_result = undefined;
                         if (depth > 0) {
-                            const updated_move = yield get_ai_move(result, difficulty, depth - 1);
-                            if (updated_move) {
-                                const updated_result = updated_move.get_result();
-                                value = updated_result.get_value(true) * value_mult;
+                            following_move = yield get_ai_move(result, difficulty, 0);
+                            if (following_move) {
+                                result = following_move.get_result();
+                                following_result = result;
                             }
                         }
-                        if (value > max || (value == max && Math.random() <= 0.2)) {
+                        const value = result.get_value(true) * value_mult;
+                        move_data.push({ move: moves[i], value: value, result: result, following_move: following_move, following_result: following_result });
+                    }
+                    const sorted_moves = move_data.sort((a, b) => b.value - a.value);
+                    const pool_size = depth == initial_depth ? Math.min(sorted_moves.length, 16) : (1 + depth);
+                    let best = undefined;
+                    let max = -Infinity;
+                    if (sorted_moves.length > 0) {
+                        for (let b = 0; b < Math.min(sorted_moves.length, pool_size); b++) {
+                            const move = sorted_moves[b].move;
+                            const result = sorted_moves[b].following_result || sorted_moves[b].result;
+                            let value = sorted_moves[b].value;
+                            if (depth > 0) {
+                                const updated_move = yield get_ai_move(result, difficulty, depth - 1);
+                                if (updated_move) {
+                                    const updated_result = updated_move.get_result();
+                                    value = updated_result.get_value(true) * value_mult;
+                                }
+                            }
+                            if (value > max || (value == max && Math.random() <= 0.2)) {
+                                max = value;
+                                best = move;
+                            }
+                        }
+                    }
+                    if (!best) {
+                        console.log("no best move, returning random...");
+                        selected_move = get_ai_move(board, 1);
+                    }
+                    else {
+                        if (depth == initial_depth) {
+                            console.log(`AI ${difficulty} best move [turn=${board.turn_num}] for ${board.turn}:`, max, best);
+                        }
+                        selected_move = best;
+                    }
+                    break;
+                }
+                case 4: {
+                    const move_data = new Array();
+                    if (depth === undefined)
+                        depth = 1;
+                    let best = undefined;
+                    let max = -Infinity;
+                    for (let i = 0; i < moves.length; i++) {
+                        let result = moves[i].get_result();
+                        if (depth > 0) {
+                            const opposing_move = yield get_ai_move(result, difficulty, depth - 1);
+                            if (opposing_move) {
+                                result = opposing_move.get_result();
+                            }
+                        }
+                        const value = result.get_value(true) * value_mult;
+                        move_data.push({ move: moves[i], value: value, result: result });
+                        if (value > max || (value == max && Math.random() <= (2.0 / moves.length))) {
                             max = value;
-                            best = move;
+                            best = moves[i];
                         }
                     }
+                    if (depth == 1) {
+                        console.log(move_data);
+                        console.log(`AI ${difficulty} best move [turn=${board.turn_num}] for ${board.turn}:`, max, best);
+                    }
+                    if (!best) {
+                        console.log("no best move, returning random...");
+                        selected_move = get_ai_move(board, 1);
+                    }
+                    else {
+                        selected_move = best;
+                    }
+                    break;
                 }
-                else {
-                    return undefined;
-                }
-                if (!best) {
-                    console.log("no best move, returning random...");
-                    return get_ai_move(board, 1);
-                }
-                if (depth == initial_depth) {
-                    console.log(`AI ${difficulty} best move [turn=${board.turn_num}] for ${board.turn}:`, max, best);
-                }
-                return best;
-            }
-            case 4: {
-                const move_data = new Array();
-                if (depth === undefined)
-                    depth = 1;
-                let best = undefined;
-                let max = -Infinity;
-                for (let i = 0; i < moves.length; i++) {
-                    let result = moves[i].get_result();
-                    if (depth > 0) {
-                        const opposing_move = yield get_ai_move(result, difficulty, depth - 1);
-                        if (opposing_move) {
-                            result = opposing_move.get_result();
+                case 3: {
+                    if (depth === undefined)
+                        depth = 1;
+                    let best = undefined;
+                    let max = -Infinity;
+                    for (let i = 0; i < moves.length; i++) {
+                        let result = moves[i].get_result();
+                        if (depth > 0) {
+                            const opposing_move = yield get_ai_move(result, difficulty, depth - 1);
+                            if (opposing_move) {
+                                result = opposing_move.get_result();
+                            }
+                        }
+                        const value = result.get_value() * value_mult;
+                        if (value > max || (value == max && Math.random() <= (2.0 / moves.length))) {
+                            max = value;
+                            best = moves[i];
                         }
                     }
-                    const value = result.get_value(true) * value_mult;
-                    move_data.push({ move: moves[i], value: value });
-                    if (value > max || (value == max && Math.random() <= (2.0 / moves.length))) {
-                        max = value;
-                        best = moves[i];
+                    if (depth == 1) {
+                        console.log(`AI ${difficulty} best move [turn=${board.turn_num}] for ${board.turn}:`, max, best);
                     }
-                    if (moves[i].type.slice(5) === 'promo') {
-                        console.log(moves[i], value, move_data, best, max);
+                    if (!best) {
+                        console.log("no best move, returning random...");
+                        selected_move = get_ai_move(board, 1);
                     }
+                    else {
+                        selected_move = best;
+                    }
+                    break;
                 }
-                if (depth == 1) {
-                    console.log(`AI ${difficulty} best move [turn=${board.turn_num}] for ${board.turn}:`, max, best);
-                }
-                if (!best) {
-                    console.log("no best move, returning random...");
-                    return get_ai_move(board, 1);
-                }
-                return best;
-            }
-            case 3: {
-                const move_data = new Array();
-                if (depth === undefined)
-                    depth = 1;
-                let best = undefined;
-                let max = -Infinity;
-                for (let i = 0; i < moves.length; i++) {
-                    let result = moves[i].get_result();
-                    if (depth > 0) {
-                        const opposing_move = yield get_ai_move(result, difficulty, depth - 1);
-                        if (opposing_move) {
-                            result = opposing_move.get_result();
+                case 2: {
+                    let best = random_move(moves);
+                    if (!best)
+                        return undefined;
+                    let max = best.get_result().get_value() * value_mult;
+                    for (let i = 0; i < moves.length; i++) {
+                        const value = moves[i].get_result().get_value() * value_mult;
+                        if (value > max) {
+                            max = value;
+                            best = moves[i];
                         }
                     }
-                    const value = result.get_value() * value_mult;
-                    move_data.push({ move: moves[i], value: value });
-                    if (value > max || (value == max && Math.random() <= (2.0 / moves.length))) {
-                        max = value;
-                        best = moves[i];
-                    }
+                    selected_move = best;
+                    break;
                 }
-                if (depth == 1) {
-                    console.log(`AI ${difficulty} best move [turn=${board.turn_num}] for ${board.turn}:`, max, best);
-                }
-                if (!best) {
-                    console.log("no best move, returning random...");
-                    return get_ai_move(board, 1);
-                }
-                return best;
+                case 1:
+                default:
+                    selected_move = random_move(moves);
+                    break;
             }
-            case 2: {
-                let best = random_move(moves);
-                if (!best)
-                    return undefined;
-                let max = best.get_result().get_value() * value_mult;
-                for (let i = 0; i < moves.length; i++) {
-                    const value = moves[i].get_result().get_value() * value_mult;
-                    console.log(moves[i], value);
-                    if (value > max) {
-                        max = value;
-                        best = moves[i];
-                    }
-                }
-                return best;
-            }
-            case 1:
-            default:
-                return random_move(moves);
         }
+        if (first && board.elem)
+            $('.wait').removeClass('wait');
+        return selected_move;
     });
 }
 function random_move(moves) {

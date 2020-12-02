@@ -98,6 +98,22 @@ footer{
     border: 2px solid gray;
 }
 
+.wait {
+    cursor: wait !important;
+}
+
+#check-alert{
+    display: none;
+    position: fixed;
+    top: 1em;
+    right: 1em;
+    padding: 0.5em;
+    background-color: var(--nav-bg);
+    color: var(--nav-color);
+    box-shadow: 2px 2px 7px var(--nav-color);
+    border-radius: 3px;
+}
+
 @media only screen and (max-aspect-ratio: 4/3){
 
     body{

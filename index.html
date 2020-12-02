@@ -29,17 +29,17 @@
             <nav class="hide-on-mobile">
                 <button id="new-game-btn">New Game</button>
                 <div id="play-options" style="display: none;">
-                    <button id="side-btn" side="w">Play as <strong>Black</strong></button>
+                    <button id="play-as-btn" play-as="w">Play as <strong>Black</strong></button>
                     <button id="play-player">vs. Player</button>
                     <button id="play-ai-beginner">vs. AI <span style="color: green">(beginner)</span></button>
                     <button id="play-ai-easy">vs. AI <span style="color: dodgerblue">(easy)</span></button>
                     <button id="play-ai-normal">vs. AI <span style="color: purple">(normal)</span></button>
                     <button id="play-ai-hard">vs. AI <span style="color: salmon">(hard)</span></button>
                 </div>
-                <button disabled aria-disabled="true">Save</button>
-                <button disabled aria-disabled="true">Share</button>
+                <button id="rotate-board">Rotate Board</button>
                 <button id="undo">Undo</button>
                 <button id="redo">Redo</button>
+                <button disabled aria-disabled="true">Save</button>
             </nav>
         </div>
         <footer class="hide-on-mobile"> © 2020 Trevor Richard </footer>
@@ -48,6 +48,8 @@
     <div id="chess-container">
         <!-- container for the chess board -->
     </div>
+
+    <div id="check-alert"></div>
 
     <footer class="mobile-only"> © 2020 Trevor Richard </footer>
 

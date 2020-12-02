@@ -43,7 +43,7 @@ img{
     background-color: var(--black-color);
 }
 
-.chess-board td:hover {
+.chess-board td:hover, .drag-hover {
     background-color: dodgerblue;
 }
 
