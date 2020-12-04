@@ -39,7 +39,24 @@ class Move {
         else {
             board.halfturn_num = 0;
         }
+        const update_rook_castle = (rook) => {
+            if (rook.color == 'w') {
+                if (rook.pos.x == 0)
+                    board.castles.Q = false;
+                else
+                    board.castles.K = false;
+            }
+            else {
+                if (rook.pos.x == 0)
+                    board.castles.q = false;
+                else
+                    board.castles.k = false;
+            }
+        };
         if (this.captured_piece) {
+            if (this.captured_piece instanceof Rook) {
+                update_rook_castle(this.captured_piece);
+            }
             this.captured_piece.take();
         }
         if (this.piece instanceof King) {
@@ -53,18 +70,7 @@ class Move {
             }
         }
         else if (this.piece instanceof Rook) {
-            if (this.piece.color == 'w') {
-                if (this.piece.pos.x == 0)
-                    board.castles.Q = false;
-                else
-                    board.castles.K = false;
-            }
-            else {
-                if (this.piece.pos.x == 0)
-                    board.castles.q = false;
-                else
-                    board.castles.k = false;
-            }
+            update_rook_castle(this.piece);
         }
         const end_move = () => {
             if (board.turn == 'b') {

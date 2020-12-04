@@ -65,7 +65,27 @@ class Move implements Move {
             board.halfturn_num = 0;
         }
 
+        // Create function for updating rook castles
+        const update_rook_castle = (rook: Rook) => {
+            if (rook.color == 'w') {
+                if (rook.pos.x == 0)
+                    board.castles.Q = false;
+                else
+                    board.castles.K = false;
+            } else {
+                if (rook.pos.x == 0)
+                    board.castles.q = false;
+                else
+                    board.castles.k = false;
+            }
+        }
+
         if (this.captured_piece) {
+
+            // Update castle if rook
+            if (this.captured_piece instanceof Rook) {
+                update_rook_castle(this.captured_piece);
+            }
 
             // Capture piece
             this.captured_piece.take();
@@ -84,17 +104,7 @@ class Move implements Move {
         }
         // Check if a rook was moved and disable castles
         else if (this.piece instanceof Rook) {
-            if (this.piece.color == 'w') {
-                if (this.piece.pos.x == 0)
-                    board.castles.Q = false;
-                else
-                    board.castles.K = false;
-            } else {
-                if (this.piece.pos.x == 0)
-                    board.castles.q = false;
-                else
-                    board.castles.k = false;
-            }
+            update_rook_castle(this.piece);
         }
 
 
