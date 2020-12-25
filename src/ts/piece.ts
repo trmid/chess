@@ -68,14 +68,14 @@ class Move implements Move {
         // Create function for updating rook castles
         const update_rook_castle = (rook: Rook) => {
             if (rook.color == 'w') {
-                if (rook.pos.x == 0)
+                if (rook.pos.x == 0 && rook.pos.y == 0)
                     board.castles.Q = false;
-                else
+                else if (rook.pos.x == 7 && rook.pos.y == 0)
                     board.castles.K = false;
             } else {
-                if (rook.pos.x == 0)
+                if (rook.pos.x == 0 && rook.pos.y == 7)
                     board.castles.q = false;
-                else
+                else if (rook.pos.x == 7 && rook.pos.y == 7)
                     board.castles.k = false;
             }
         }
