@@ -371,7 +371,7 @@ abstract class Piece implements Piece {
             case 'k': img_class = 'king'; break;
         }
         return $(document.createElement("img"))
-            .attr("src", `https://midpoint68.github.io/chess/img/${this.board.piece_set_name}/${this.color}${type}.png`)
+            .attr("src", `img/${this.board.piece_set_name}/${this.color}${type}.png`)
             .attr('draggable', 'true')
             .attr('ondragstart', `event.dataTransfer.setData("text/plain",null);$(this).css("opacity", 0);`)
             .attr('ondragend', `this.style="";`)
